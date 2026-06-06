@@ -1,0 +1,108 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand-bg: #fbf9f4;       /* Apple/Zara off-white */
+  --color-brand-card: #ffffff;     /* Crisp white container */
+  --color-brand-dark: #0a0a0b;     /* Deep charcoal text & buttons */
+  --color-brand-muted: #6e6e73;    /* Apple elegant gray text */
+  --color-brand-border: #e8e8ed;   /* Subtle divider gray */
+  --font-sans: 'Inter', -apple-system, sans-serif;
+}
+.logo-neon {
+
+    font-size: 6rem;
+    font-weight: 900;
+
+    color: #ffb48a;
+
+    text-shadow:
+        0 0 4px #7dd3fc,
+        0 0 10px #7dd3fc,
+        0 0 20px #7dd3fc,
+        0 0 40px #7dd3fc;
+
+    letter-spacing: 2px;
+}
+
+.sock {
+
+    font-size: 4rem;
+
+    color: #38bdf8;
+
+    text-shadow:
+        0 0 10px #38bdf8,
+        0 0 20px #38bdf8,
+        0 0 40px #38bdf8;
+}
+
+.start-btn {
+
+    background: #d8f7ff;
+
+    color: #38bdf8;
+
+    padding: 12px 60px;
+
+    border: 1px solid #7dd3fc;
+
+    box-shadow:
+        0 0 15px #7dd3fc,
+        0 0 25px #7dd3fc;
+
+    transition: .3s ease;
+}
+
+.start-btn:hover {
+
+    transform: scale(1.05);
+
+    box-shadow:
+        0 0 20px #38bdf8,
+        0 0 50px #38bdf8;
+}
+.sock-icon{
+    width:80px;
+    height:80px;
+}
+
+.sock-icon path{
+    stroke:#0F9ED5;
+    stroke-width:2;
+
+    filter:
+      drop-shadow(0 0 4px #7dd3fc)
+      drop-shadow(0 0 10px #7dd3fc);
+
+    fill:none;
+}
+.sock-icon{
+    width:80px;
+    height:80px;
+}
+
+.sock-icon path{
+    stroke:#0F9ED5;
+    stroke-width:2;
+
+    filter:
+      drop-shadow(0 0 4px #7dd3fc)
+      drop-shadow(0 0 10px #7dd3fc);
+
+    fill:none;
+}
+.sock-icon{
+  width:72px;
+  height:72px;
+}
+
+.sock-icon path{
+  fill:#d9f7ff;
+  stroke:#008fbd;
+  stroke-width:1.5;
+
+  filter:
+    drop-shadow(0 0 4px #7dd3fc)
+    drop-shadow(0 0 10px #7dd3fc)
+    drop-shadow(4px 6px 5px rgba(0,0,0,.22));
+}
