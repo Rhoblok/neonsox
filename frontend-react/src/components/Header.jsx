@@ -1,5 +1,6 @@
-import { Link, useLocation } from "react-router-dom"
+import { Link, useLocation, useNavigate } from "react-router-dom"
 import { useTheme } from "../context/ThemeContext"
+import { useAuth } from "../context/AuthContext"
 import ThemeToggle from "./ThemeToggle"
 import Wordmark from "./Wordmark"
 
@@ -11,7 +12,22 @@ const NAV_LINKS = [
 
 export default function Header() {
   const { pathname } = useLocation()
+  const navigate = useNavigate()
   const { colors, tokens, isDark } = useTheme()
+  const { isAuthenticated, isAdmin, signOut } = useAuth()
+
+  const linkStyle = (active) => ({
+    textDecoration: "none",
+    fontSize: "0.9rem",
+    fontWeight: 600,
+    color: active ? colors.accent : colors.textMuted,
+    transition: "color 0.2s ease",
+  })
+
+  const handleSignOut = async () => {
+    await signOut()
+    navigate("/")
+  }
 
   return (
     <header
@@ -33,41 +49,57 @@ export default function Header() {
         <Wordmark size="1.5rem" withTM />
       </Link>
 
-      <nav style={{ display: "flex", alignItems: "center", gap: "26px" }}>
-        {NAV_LINKS.map((link) => {
-          const active = pathname === link.path
-          return (
+      <nav style={{ display: "flex", alignItems: "center", gap: "20px", flexWrap: "wrap" }}>
+        {isAuthenticated ? (
+          <>
+            <Link to="/" style={linkStyle(pathname === "/")}>Home</Link>
+            <Link to="/member" style={linkStyle(pathname === "/member")}>Member</Link>
+            <Link to="/dashboard" style={linkStyle(pathname === "/dashboard")}>Dashboard</Link>
+            {isAdmin && (
+              <Link to="/admin" style={linkStyle(pathname === "/admin")}>Admin</Link>
+            )}
+            <button
+              type="button"
+              onClick={handleSignOut}
+              style={{
+                background: "transparent",
+                border: `1px solid ${colors.border}`,
+                color: colors.textMuted,
+                borderRadius: tokens.radius.sm,
+                padding: "8px 14px",
+                fontSize: "0.85rem",
+                fontWeight: 600,
+                cursor: "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              Sign out
+            </button>
+          </>
+        ) : (
+          <>
+            {NAV_LINKS.map((link) => (
+              <Link key={link.path} to={link.path} style={linkStyle(pathname === link.path)}>
+                {link.label}
+              </Link>
+            ))}
             <Link
-              key={link.path}
-              to={link.path}
+              to="/pricing"
               style={{
                 textDecoration: "none",
                 fontSize: "0.9rem",
-                fontWeight: 600,
-                color: active ? colors.accent : colors.textMuted,
-                transition: "color 0.2s ease",
+                fontWeight: 700,
+                color: "#06121c",
+                background: colors.accent,
+                padding: "9px 20px",
+                borderRadius: tokens.radius.sm,
+                boxShadow: colors.glowShadow,
               }}
             >
-              {link.label}
+              Join Us
             </Link>
-          )
-        })}
-
-        <Link
-          to="/pricing"
-          style={{
-            textDecoration: "none",
-            fontSize: "0.9rem",
-            fontWeight: 700,
-            color: "#06121c",
-            background: colors.accent,
-            padding: "9px 20px",
-            borderRadius: tokens.radius.sm,
-            boxShadow: colors.glowShadow,
-          }}
-        >
-          Join Us
-        </Link>
+          </>
+        )}
 
         <ThemeToggle />
       </nav>

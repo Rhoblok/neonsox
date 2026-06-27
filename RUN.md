@@ -36,8 +36,7 @@ npm install
 npm run dev
 ```
 
-- URL: http://localhost:5173 (Vite uses the next free port if 5173 is taken — check the
-  terminal output for the actual URL).
+- URL: http://localhost:5173 or **http://localhost:5174** (Vite uses the next free port — check the terminal output for the actual URL).
 - Needs `frontend-react\.env` (Stripe publishable key, Supabase, and `VITE_ADMIN_*`).
 - Stop with **Ctrl + C**.
 

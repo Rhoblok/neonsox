@@ -16,7 +16,7 @@ const ANNOUNCEMENTS = [
 export default function Member() {
   const navigate = useNavigate()
   const { colors, tokens } = useTheme()
-  const { user, isAuthenticated, loading, hasMembership, hasCampaign } = useAuth()
+  const { user, isAuthenticated, loading, isAdmin, hasMembership, hasCampaign } = useAuth()
 
   useEffect(() => {
     if (!loading && !isAuthenticated) navigate("/login")
@@ -71,7 +71,7 @@ export default function Member() {
             letterSpacing: "0.06em",
           }}
         >
-          Member Portal
+          Member Portal{isAdmin ? " · Admin" : ""}
         </div>
       </div>
 

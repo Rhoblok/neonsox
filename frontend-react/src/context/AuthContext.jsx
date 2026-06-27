@@ -33,10 +33,27 @@ function isAdminEmail(email) {
   return !!ADMIN_EMAIL && (email || "").trim().toLowerCase() === ADMIN_EMAIL
 }
 
+async function fetchProfileRole(userId) {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", userId)
+    .single()
+  if (error || !data?.role) return null
+  return data.role
+}
+
+function roleIsAdmin(role, email) {
+  return role === "admin" || isAdminEmail(email)
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
   const [flags, setFlags] = useState(readFlags)
+  // Role from the Supabase `profiles` table (server-side source of truth). Falls
+  // back to email-match until the profiles table + RLS are set up.
+  const [profileRole, setProfileRole] = useState(null)
 
   // Restore session on load + subscribe to auth changes.
   useEffect(() => {
@@ -58,7 +75,23 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
-  const isAdmin = !!user && isAdminEmail(user.email)
+  // Fetch the user's role from `profiles`. Gracefully ignores a missing table so
+  // the app keeps working before the migration is run.
+  useEffect(() => {
+    if (!user) {
+      setProfileRole(null)
+      return
+    }
+    let active = true
+    fetchProfileRole(user.id).then((role) => {
+      if (active) setProfileRole(role)
+    })
+    return () => {
+      active = false
+    }
+  }, [user])
+
+  const isAdmin = !!user && roleIsAdmin(profileRole, user.email)
 
   // Admins start fully unlocked; signed-out resets the preview flags.
   useEffect(() => {
@@ -76,7 +109,9 @@ export function AuthProvider({ children }) {
       password,
     })
     if (error) return { ok: false, error: error.message }
-    return { ok: true, isAdmin: isAdminEmail(data.user?.email) }
+    const role = await fetchProfileRole(data.user.id)
+    setProfileRole(role)
+    return { ok: true, isAdmin: roleIsAdmin(role, data.user?.email) }
   }
 
   const signUp = async (email, password, name) => {
@@ -103,6 +138,7 @@ export function AuthProvider({ children }) {
     signIn,
     signUp,
     signOut,
+    profileRole,
     hasMembership: flags.hasMembership,
     hasCampaign: flags.hasCampaign,
     setHasMembership: (val) => setFlags((f) => ({ ...f, hasMembership: val })),

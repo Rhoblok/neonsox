@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, Link } from "react-router-dom"
 import ThemeToggle from "../components/ThemeToggle"
 import { useTheme } from "../context/ThemeContext"
 import { useAuth } from "../context/AuthContext"
@@ -29,7 +29,7 @@ function readWizard() {
 
 export default function Dashboard() {
   const { colors } = useTheme()
-  const { hasCampaign, isAuthenticated, loading } = useAuth()
+  const { hasCampaign, isAuthenticated, loading, isAdmin, signOut } = useAuth()
   const navigate = useNavigate()
   const styles = getStyles(colors)
 
@@ -155,8 +155,17 @@ export default function Dashboard() {
             Mode: {isCurated ? "✨ Curated Walkthrough Active" : "📁 Blank Canvas Dashboard"}
           </p>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+          <Link to="/" style={styles.navLink}>Home</Link>
+          <Link to="/member" style={styles.navLink}>Member</Link>
+          {isAdmin && <Link to="/admin" style={styles.navLink}>Admin</Link>}
           <button style={styles.rerunBtn} onClick={rerunWizard}>↻ Re-run setup</button>
+          <button
+            style={styles.rerunBtn}
+            onClick={async () => { await signOut(); navigate("/") }}
+          >
+            Sign out
+          </button>
           <ThemeToggle />
         </div>
       </header>
@@ -554,6 +563,13 @@ function getStyles(colors) {
       fontSize: "0.82rem",
       fontWeight: 600,
       cursor: "pointer",
+      textDecoration: "none",
+    },
+    navLink: {
+      color: colors.textMuted,
+      fontSize: "0.82rem",
+      fontWeight: 600,
+      textDecoration: "none",
     },
 
     // File-folder tabs
