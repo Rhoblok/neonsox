@@ -26,11 +26,21 @@ _Last updated: 2026-06-23_
 ---
 
 ## Plumbing (when ready for real users)
+- [x] **Real authentication** (Supabase) — /login + /signup pages, session-backed
+      AuthContext, route guards on /member /dashboard /admin
+- [ ] Migrate admin check from email-match to a **Supabase role + Row-Level Security**
+      (true server-side authorization)
 - [ ] Replace admin/preview flags with **real Stripe subscription + campaign status**
 - [ ] **Backend guard** — reject campaign-tier checkout unless membership is active
-- [ ] **Real authentication** (Supabase) + working 2FA (replace placeholders)
 - [ ] **Stripe webhook** to auto-flip `hasMembership` / `hasCampaign` after checkout
+- [ ] Optional: real **2FA** (current 2FA modal was removed in favor of Supabase login)
 - [ ] Make the **landing page responsive** — 3-column layout collapses on narrow screens
+
+## Auth notes
+- Admin = whoever logs in with `VITE_ADMIN_EMAIL` (frontend convenience only;
+  real authorization must move to Supabase RLS — see above).
+- Signup handles email confirmation either way: shows "check your email" if it's ON
+  in Supabase, logs straight in if it's OFF. Keep it ON for production.
 
 ---
 

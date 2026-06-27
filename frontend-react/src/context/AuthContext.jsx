@@ -1,87 +1,112 @@
 import { createContext, useContext, useEffect, useState } from "react"
+import { supabase } from "../lib/supabase"
 
 const AuthContext = createContext(null)
 
-const USER_KEY = "neonsox-user"
 const FLAGS_KEY = "neonsox-flags"
 
-// Single built-in admin account. Lets you walk every part of the app and unlock
-// the membership-gated and campaign-gated views. Wire to real auth (Supabase /
-// Stripe) later — this is a dev/owner account only.
-//
-// Credentials are read from env vars so the literal values stay out of the repo.
-// Set VITE_ADMIN_EMAIL / VITE_ADMIN_PASSWORD in frontend-react/.env (gitignored).
-// NOTE: Vite bakes VITE_ vars into the bundle, so this is not a true secret —
-// the real fix is server-side auth (on the roadmap).
-const ADMIN = {
-  email: (import.meta.env.VITE_ADMIN_EMAIL || "").trim().toLowerCase(),
-  password: import.meta.env.VITE_ADMIN_PASSWORD || "",
-  name: "Admin",
-  role: "admin",
-}
+// Admin is determined by matching the owner email for now. This is a frontend
+// convenience only — real authorization must be enforced server-side via Supabase
+// Row-Level Security / a roles table. (On the roadmap.)
+const ADMIN_EMAIL = (import.meta.env.VITE_ADMIN_EMAIL || "").trim().toLowerCase()
 
-function readJSON(key, fallback) {
-  if (typeof window === "undefined") return fallback
+function readFlags() {
+  if (typeof window === "undefined") return { hasMembership: false, hasCampaign: false }
   try {
-    const raw = window.localStorage.getItem(key)
-    return raw ? JSON.parse(raw) : fallback
+    const raw = window.localStorage.getItem(FLAGS_KEY)
+    return raw ? JSON.parse(raw) : { hasMembership: false, hasCampaign: false }
   } catch {
-    return fallback
+    return { hasMembership: false, hasCampaign: false }
   }
 }
 
+function mapUser(sUser) {
+  if (!sUser) return null
+  return {
+    id: sUser.id,
+    email: sUser.email,
+    name: sUser.user_metadata?.name || sUser.email?.split("@")[0] || "Member",
+  }
+}
+
+function isAdminEmail(email) {
+  return !!ADMIN_EMAIL && (email || "").trim().toLowerCase() === ADMIN_EMAIL
+}
+
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(() => readJSON(USER_KEY, null))
+  const [user, setUser] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [flags, setFlags] = useState(readFlags)
 
-  // Preview flags: which gated experiences are unlocked. Admin can flip these in
-  // the control panel to preview both locked and unlocked states.
-  const [flags, setFlags] = useState(() =>
-    readJSON(FLAGS_KEY, { hasMembership: false, hasCampaign: false })
-  )
-
+  // Restore session on load + subscribe to auth changes.
   useEffect(() => {
-    if (user) window.localStorage.setItem(USER_KEY, JSON.stringify(user))
-    else window.localStorage.removeItem(USER_KEY)
-  }, [user])
+    let mounted = true
+
+    supabase.auth.getSession().then(({ data }) => {
+      if (!mounted) return
+      setUser(mapUser(data.session?.user))
+      setLoading(false)
+    })
+
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(mapUser(session?.user))
+    })
+
+    return () => {
+      mounted = false
+      sub.subscription.unsubscribe()
+    }
+  }, [])
+
+  const isAdmin = !!user && isAdminEmail(user.email)
+
+  // Admins start fully unlocked; signed-out resets the preview flags.
+  useEffect(() => {
+    if (isAdmin) setFlags({ hasMembership: true, hasCampaign: true })
+    else if (!user) setFlags({ hasMembership: false, hasCampaign: false })
+  }, [isAdmin, user])
 
   useEffect(() => {
     window.localStorage.setItem(FLAGS_KEY, JSON.stringify(flags))
   }, [flags])
 
-  const login = (email, password) => {
-    const e = (email || "").trim().toLowerCase()
-    // Require configured credentials; never match on empty env vars.
-    if (!ADMIN.email || !ADMIN.password) {
-      return { ok: false, error: "Admin login is not configured. Set VITE_ADMIN_* in .env." }
-    }
-    if (e === ADMIN.email && password === ADMIN.password) {
-      const u = { email: ADMIN.email, name: ADMIN.name, role: ADMIN.role }
-      setUser(u)
-      // Admins start fully unlocked so they can see every app aspect.
-      setFlags({ hasMembership: true, hasCampaign: true })
-      return { ok: true, user: u }
-    }
-    return { ok: false, error: "Invalid security credentials." }
+  const signIn = async (email, password) => {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: (email || "").trim(),
+      password,
+    })
+    if (error) return { ok: false, error: error.message }
+    return { ok: true, isAdmin: isAdminEmail(data.user?.email) }
   }
 
-  const logout = () => {
+  const signUp = async (email, password, name) => {
+    const { data, error } = await supabase.auth.signUp({
+      email: (email || "").trim(),
+      password,
+      options: { data: { name: (name || "").trim() } },
+    })
+    if (error) return { ok: false, error: error.message }
+    // When email confirmation is ON, no session is returned until the user confirms.
+    return { ok: true, needsConfirmation: !data.session }
+  }
+
+  const signOut = async () => {
+    await supabase.auth.signOut()
     setUser(null)
-    setFlags({ hasMembership: false, hasCampaign: false })
   }
-
-  const setHasMembership = (val) => setFlags((f) => ({ ...f, hasMembership: val }))
-  const setHasCampaign = (val) => setFlags((f) => ({ ...f, hasCampaign: val }))
 
   const value = {
     user,
-    isAdmin: user?.role === "admin",
+    isAdmin,
     isAuthenticated: !!user,
-    login,
-    logout,
+    loading,
+    signIn,
+    signUp,
+    signOut,
     hasMembership: flags.hasMembership,
     hasCampaign: flags.hasCampaign,
-    setHasMembership,
-    setHasCampaign,
+    setHasMembership: (val) => setFlags((f) => ({ ...f, hasMembership: val })),
+    setHasCampaign: (val) => setFlags((f) => ({ ...f, hasCampaign: val })),
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

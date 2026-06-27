@@ -6,10 +6,10 @@ import About from "./pages/About"
 import Features from "./pages/Features"
 import Privacy from "./pages/Privacy"
 import Admin from "./pages/Admin"
-import { useState } from 'react';
+import Login from "./components/Login"
+import Signup from "./components/Signup"
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { useTheme } from './context/ThemeContext';
-import { useAuth } from './context/AuthContext';
 import './App.css';
 import logoImage from './assets/Picture1.svg';
 import sidePhoto from './assets/img_1506.jpeg'; 
@@ -18,51 +18,10 @@ function App() {
   const location = useLocation();
   const navigate = useNavigate();
   const pathname = location.pathname;
-  const isStandaloneRoute = ["/pricing", "/success", "/member", "/dashboard", "/about", "/features", "/privacy", "/admin"].includes(pathname);
+  const isStandaloneRoute = ["/pricing", "/success", "/member", "/dashboard", "/about", "/features", "/privacy", "/admin", "/login", "/signup"].includes(pathname);
 
   const { isDark, toggle: toggleTheme } = useTheme();
-  const { login } = useAuth();
   const isDarkMode = isDark;
-  const [showModal, setShowModal] = useState(false);
-  const [modalStep, setModalStep] = useState('CREDENTIALS');
-  
-  const [emailInput, setEmailInput] = useState('ceo@neonsox.com');
-  const [passwordInput, setPasswordInput] = useState('');
-  const [twoFactorInput, setTwoFactorInput] = useState('');
-  const [errorMessage, setErrorMessage] = useState('');
-
-  const handleCredentialSubmit = (e) => {
-    e.preventDefault();
-    // Validate against the auth store without committing the session yet — the
-    // session is created after the 2FA challenge passes.
-    const check = login(emailInput, passwordInput);
-    if (check.ok) {
-      setErrorMessage('');
-      setModalStep('2FA');
-    } else {
-      setErrorMessage(check.error || 'Invalid security credentials.');
-    }
-  };
-
-  const handleTwoFactorSubmit = (e) => {
-    e.preventDefault();
-    if (twoFactorInput.length === 6) {
-      setErrorMessage('');
-      // login() already set the session in the credentials step; just route in.
-      setShowModal(false);
-      resetFlow();
-      navigate('/admin');
-    } else {
-      setErrorMessage('Security token must match a 6-digit signature format.');
-    }
-  };
-
-  const resetFlow = () => {
-    setModalStep('CREDENTIALS');
-    setPasswordInput('');
-    setTwoFactorInput('');
-    setErrorMessage('');
-  };
 
   if (isStandaloneRoute) {
     return (
@@ -75,6 +34,8 @@ function App() {
         {pathname === "/features" && <Features />}
         {pathname === "/privacy" && <Privacy />}
         {pathname === "/admin" && <Admin />}
+        {pathname === "/login" && <Login />}
+        {pathname === "/signup" && <Signup />}
       </div>
     );
   }
@@ -161,7 +122,7 @@ function App() {
             </div>
 
             {/* Custom Rectangular Neon Glow Button */}
-            <button className="start-btn" onClick={() => { setShowModal(true); resetFlow(); }}>Log-in / Sign up</button>
+            <button className="start-btn" onClick={() => navigate('/login')}>Log-in / Sign up</button>
           </section>
 
           {/* SYSTEM FOOTER */}
@@ -198,80 +159,6 @@ function App() {
         </div>
 
       </div>
-
-      {/* MULTI-SCREEN SECURE POPUP MODAL OVERLAY ENGINE */}
-      {showModal && (
-        <div className="modal-overlay" onClick={() => setShowModal(false)}>
-          <div className="modal-box" onClick={(e) => e.stopPropagation()}>
-            
-            {/* CLEAN OVERLAY X BUTTON AT TOP CORNER */}
-            <button className="modal-close-btn" onClick={() => setShowModal(false)}>×</button>
-            
-            {/* SCREEN 1: PRIMARY CREDENTIAL FORM LAYOUT */}
-            {modalStep === 'CREDENTIALS' && (
-              <form onSubmit={handleCredentialSubmit} className="modal-form-view">
-                <h2 className="modal-header-title">Secure Gateway Access</h2>
-                
-                <div className="modal-form-group">
-                  <input 
-                    type="email" 
-                    value={emailInput}
-                    onChange={(e) => setEmailInput(e.target.value)}
-                    placeholder="USER NAME" 
-                    className="modal-input central-input" 
-                    required
-                  />
-                  
-                  <input 
-                    type="password" 
-                    value={passwordInput}
-                    onChange={(e) => setPasswordInput(e.target.value)}
-                    placeholder="PASSWORD" 
-                    className="modal-input central-input" 
-                    required
-                  />
-                </div>
-
-                {errorMessage && <div className="modal-error-alert">{errorMessage}</div>}
-
-                <p className="modal-signup-prompt">
-                  Not a member? <Link to="/pricing" className="blue-link">Join us!</Link>
-                </p>
-
-                <button type="submit" className="modal-subscribe-btn">Subscribe</button>
-              </form>
-            )}
-
-            {/* SCREEN 2: SECOND-FACTOR TOKEN IDENTIFICATION LAYOUT */}
-            {modalStep === '2FA' && (
-              <form onSubmit={handleTwoFactorSubmit} className="modal-form-view">
-                <h2>Two-Factor Challenge</h2>
-                <p>Enter the 6-digit generation code tracking on your authenticated verification device.</p>
-                
-                <div className="modal-form-group">
-                  <label className="input-label text-center">Dynamic 2FA Verification Token</label>
-                  <input 
-                    type="text" 
-                    maxLength="6"
-                    value={twoFactorInput}
-                    onChange={(e) => setTwoFactorInput(e.target.value.replace(/\D/g, ''))}
-                    placeholder="000 000" 
-                    className="modal-input security-token-box" 
-                    required
-                    autoFocus
-                  />
-                </div>
-
-                {errorMessage && <div className="modal-error-alert">{errorMessage}</div>}
-
-                <button type="submit" className="modal-submit-btn">Authorize Verification</button>
-                <button type="button" className="modal-back-link" onClick={() => setModalStep('CREDENTIALS')}>Return to Previous Screen</button>
-              </form>
-            )}
-
-          </div>
-        </div>
-      )}
 
     </div>
   );

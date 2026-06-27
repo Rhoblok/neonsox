@@ -1,3 +1,4 @@
+import { useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import Layout from "../components/Layout"
 import Card from "../components/Card"
@@ -15,7 +16,19 @@ const ANNOUNCEMENTS = [
 export default function Member() {
   const navigate = useNavigate()
   const { colors, tokens } = useTheme()
-  const { user, hasMembership, hasCampaign } = useAuth()
+  const { user, isAuthenticated, loading, hasMembership, hasCampaign } = useAuth()
+
+  useEffect(() => {
+    if (!loading && !isAuthenticated) navigate("/login")
+  }, [loading, isAuthenticated, navigate])
+
+  if (loading || !isAuthenticated) {
+    return (
+      <Layout>
+        <div style={{ textAlign: "center", padding: "60px 20px", color: colors.textMuted }}>Loading…</div>
+      </Layout>
+    )
+  }
 
   const member = {
     displayName: user?.name || "Member",

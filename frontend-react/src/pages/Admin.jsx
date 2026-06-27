@@ -22,12 +22,22 @@ export default function Admin() {
   const {
     isAdmin,
     user,
-    logout,
+    loading,
+    signOut,
     hasMembership,
     hasCampaign,
     setHasMembership,
     setHasCampaign,
   } = useAuth()
+
+  // Wait for the session to resolve before deciding access (avoids a flash).
+  if (loading) {
+    return (
+      <Layout>
+        <div style={{ textAlign: "center", padding: "60px 20px", color: colors.textMuted }}>Loading…</div>
+      </Layout>
+    )
+  }
 
   // Gate: only admins can view the control panel.
   if (!isAdmin) {
@@ -37,9 +47,9 @@ export default function Admin() {
           <div style={{ fontSize: "2.4rem", marginBottom: "12px" }}>🔒</div>
           <h1 style={{ color: colors.text, margin: "0 0 10px" }}>Admin access required</h1>
           <p style={{ color: colors.textMuted, maxWidth: "440px", margin: "0 auto 24px", lineHeight: 1.6 }}>
-            Sign in with the admin account from the landing page to open the control panel.
+            Sign in with the admin account to open the control panel.
           </p>
-          <NeonButton size="lg" onClick={() => navigate("/")}>Go to Login</NeonButton>
+          <NeonButton size="lg" onClick={() => navigate("/login")}>Go to Login</NeonButton>
         </div>
       </Layout>
     )
@@ -108,7 +118,7 @@ export default function Admin() {
             Signed in as <strong style={{ color: colors.accent }}>{user.email}</strong>
           </p>
         </div>
-        <NeonButton variant="ghost" onClick={() => { logout(); navigate("/") }}>
+        <NeonButton variant="ghost" onClick={async () => { await signOut(); navigate("/") }}>
           Log out
         </NeonButton>
       </div>

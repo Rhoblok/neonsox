@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import ThemeToggle from "../components/ThemeToggle"
 import { useTheme } from "../context/ThemeContext"
@@ -29,9 +29,13 @@ function readWizard() {
 
 export default function Dashboard() {
   const { colors } = useTheme()
-  const { hasCampaign } = useAuth()
+  const { hasCampaign, isAuthenticated, loading } = useAuth()
   const navigate = useNavigate()
   const styles = getStyles(colors)
+
+  useEffect(() => {
+    if (!loading && !isAuthenticated) navigate("/login")
+  }, [loading, isAuthenticated, navigate])
 
   // Wizard is remembered: once completed it won't show again until "Re-run setup".
   const [currentStep, setCurrentStep] = useState(() => (readWizard() ? "dashboard" : "wizard"))
@@ -95,6 +99,14 @@ export default function Dashboard() {
   const launch = (e) => {
     e.preventDefault()
     if (canLaunch) setSaved(true)
+  }
+
+  if (loading || !isAuthenticated) {
+    return (
+      <div style={styles.fullscreenContainer}>
+        <div style={{ color: colors.textMuted }}>Loading…</div>
+      </div>
+    )
   }
 
   // ── STEP 1: ONBOARDING WIZARD ─────────────────────────────
