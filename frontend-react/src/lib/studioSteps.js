@@ -74,7 +74,12 @@ export function allStudioStepsComplete(_state, steps) {
   return STEP_ORDER.every((n) => steps.complete[n])
 }
 
-/** Best playback URL for a generation — local branded beats stale cloud copies. */
+function isLocalDevMediaUrl(url) {
+  if (!url || typeof url !== "string") return false
+  return url.includes("localhost") || url.startsWith("/api/media/")
+}
+
+/** Best playback URL for live studio preview — local branded beats stale cloud copies. */
 export function generationPlaybackUrl(generation) {
   if (!generation) return null
   if (generation.brandedOutputUrl) return generation.brandedOutputUrl
@@ -86,6 +91,29 @@ export function generationPlaybackUrl(generation) {
     generation.outputUrl ||
     null
   )
+}
+
+/** URL to persist in Socials Tray — cloud first so playback works without local backend. */
+export function exportPlaybackUrl(generation) {
+  if (!generation) return null
+  return (
+    generation.cloudBrandedOutputUrl ||
+    generation.cloudFinalOutputUrl ||
+    generation.brandedOutputUrl ||
+    generation.finalOutputUrl ||
+    generation.cloudOutputUrl ||
+    generation.outputUrl ||
+    null
+  )
+}
+
+/** Resolve tray item for video player, copy link, and download. */
+export function trayItemPlaybackUrl(item) {
+  if (!item) return null
+  if (item.cloudVideoUrl) return item.cloudVideoUrl
+  const url = item.videoUrl
+  if (url && !isLocalDevMediaUrl(url)) return url
+  return url || null
 }
 
 /** Raw clip URL for audio mix (never branded/final). */

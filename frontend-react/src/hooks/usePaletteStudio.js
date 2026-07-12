@@ -3,8 +3,8 @@ import { generateVideo, mixAudioOnClip, applyTextOverlay } from "../lib/campaign
 import { buildCampaignSummary, buildNarrationScript, buildNarrationScriptVariants, narrationHintForIndustry } from "../lib/campaignSummaryBuilder"
 import { publicAudioError, publicOverlayError } from "../lib/publicErrors"
 import { friendlyRunwayError } from "../lib/runwayErrors.js"
-import { generationPlaybackUrl, generationMixSourceUrl, generationOverlaySourceUrl, generationHasPlayableClip, effectiveAdTheme } from "../lib/studioSteps"
-import { loadSocialsTray, addToSocialsTray } from "../lib/socialsTrayStorage"
+import { generationPlaybackUrl, exportPlaybackUrl, generationMixSourceUrl, generationOverlaySourceUrl, generationHasPlayableClip, effectiveAdTheme } from "../lib/studioSteps"
+import { loadSocialsTray, addToSocialsTray, upgradeSocialsTrayUrls } from "../lib/socialsTrayStorage"
 import {
   loadStudioStateFromCloud,
   saveStudioStateToCloud,
@@ -125,10 +125,17 @@ export function usePaletteStudio(campaignSetup, userId) {
         setState(merged)
         saveStudioState(storageKey, merged)
         restoreSocialsTrayFromCloud(storageKey, remote.socials_tray)
-        window.dispatchEvent(new CustomEvent("neonsox-socials-tray-updated"))
+        const { changed } = upgradeSocialsTrayUrls(storageKey, merged.generations)
+        if (changed) {
+          window.dispatchEvent(new CustomEvent("neonsox-socials-tray-updated"))
+        }
         await saveStudioStateToCloud(userId, storageKey, merged, loadSocialsTray(storageKey))
       } else {
         setState(local)
+        const { changed } = upgradeSocialsTrayUrls(storageKey, local.generations)
+        if (changed) {
+          window.dispatchEvent(new CustomEvent("neonsox-socials-tray-updated"))
+        }
         if (countConsumedTries(local.generations) > 0) {
           await saveStudioStateToCloud(userId, storageKey, local, loadSocialsTray(storageKey))
         }
@@ -753,13 +760,16 @@ export function usePaletteStudio(campaignSetup, userId) {
     const hasFinishedAd =
       selectedGeneration.textOverlaySkipped === true || !!selectedGeneration.brandedOutputUrl
     if (!hasFinishedAd) return
-    const videoUrl = generationPlaybackUrl(selectedGeneration)
+    const videoUrl = exportPlaybackUrl(selectedGeneration)
     if (!videoUrl) return
+    const cloudVideoUrl =
+      selectedGeneration.cloudBrandedOutputUrl || selectedGeneration.cloudFinalOutputUrl || null
 
     addToSocialsTray(storageKey, {
       id: selectedGeneration.id,
       generationId: selectedGeneration.id,
       videoUrl,
+      cloudVideoUrl,
       companyName: state.companyName.trim(),
       industry: state.industryCustom || state.industry,
       voiceStyle: state.voiceStyle,

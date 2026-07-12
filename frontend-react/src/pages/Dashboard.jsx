@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { useNavigate, Link, useLocation } from "react-router-dom"
 import { loadCampaignSetup, saveCampaignSetup } from "../lib/campaignSetupStorage"
-import { loadCampaignSetupFromSupabase, saveCampaignSetupToSupabase } from "../lib/campaignSetupSync"
+import { loadCampaignSetupFromSupabase, saveCampaignSetupToSupabase, probeCampaignCloud } from "../lib/campaignSetupSync"
 import { formatMarketSummary } from "../lib/marketCountries"
 import ThemeToggle from "../components/ThemeToggle"
 import Wordmark from "../components/Wordmark"
@@ -47,6 +47,7 @@ export default function Dashboard() {
 
   const [campaign, setCampaignState] = useState(() => loadCampaignSetup())
   const [campaignReady, setCampaignReady] = useState(() => !user?.id)
+  const [campaignCloudMissing, setCampaignCloudMissing] = useState(false)
 
   const setCampaign = useCallback(
     (next) => {
@@ -66,10 +67,14 @@ export default function Dashboard() {
   useEffect(() => {
     if (!user?.id) {
       setCampaignReady(true)
+      setCampaignCloudMissing(false)
       return
     }
     let cancelled = false
     setCampaignReady(false)
+    probeCampaignCloud(user.id).then((probe) => {
+      if (!cancelled) setCampaignCloudMissing(!!probe.missingTable)
+    })
     loadCampaignSetupFromSupabase(user.id).then((setup) => {
       if (!cancelled) {
         setCampaignState(setup)
@@ -198,6 +203,25 @@ export default function Dashboard() {
           <ThemeToggle />
         </div>
       </header>
+
+      {campaignCloudMissing && (
+        <div
+          style={{
+            marginBottom: "12px",
+            padding: "10px 14px",
+            borderRadius: "10px",
+            border: "1px solid rgba(255,107,107,0.45)",
+            background: "rgba(255,107,107,0.08)",
+            color: colors.text,
+            fontSize: "0.82rem",
+            lineHeight: 1.5,
+          }}
+        >
+          <strong style={{ color: "#ff8a8a" }}>Campaign cloud backup not set up.</strong> Run{" "}
+          <code style={{ fontSize: "0.78rem" }}>docs/supabase-campaigns.sql</code> in Supabase SQL
+          Editor so tier, platforms, and markets sync across devices.
+        </div>
+      )}
 
       {/* File-folder tabs */}
       <div style={styles.tabRow} role="tablist" aria-label="Dashboard sections">

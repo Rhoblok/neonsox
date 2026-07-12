@@ -47,8 +47,26 @@ export async function saveCampaignSetupToSupabase(userId, setup) {
 
   if (error) {
     console.warn("campaign setup save failed:", error.message)
-    return { ok: false, error: error.message }
+    const missingTable =
+      error.code === "42P01" || String(error.message).includes("Could not find the table")
+    return { ok: false, error: error.message, missingTable }
   }
 
   return { ok: true }
+}
+
+/** Returns whether the campaigns table exists and is reachable for this user. */
+export async function probeCampaignCloud(userId) {
+  if (!userId) return { ready: true }
+
+  const { error } = await supabase.from("campaigns").select("user_id").eq("user_id", userId).limit(1)
+
+  if (!error) return { ready: true }
+
+  const missingTable =
+    error.code === "42P01" || String(error.message).includes("Could not find the table")
+  if (missingTable) return { ready: false, missingTable: true }
+
+  console.warn("campaign cloud probe failed:", error.message)
+  return { ready: false, error: error.message }
 }

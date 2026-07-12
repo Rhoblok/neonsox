@@ -2,11 +2,10 @@ import fs from "node:fs/promises"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { createClient } from "@supabase/supabase-js"
+import { BUCKET, maskedClipUrl } from "./clipProxy.js"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const MEDIA_ROOT = path.join(__dirname, "..", "tmp", "media")
-
-const BUCKET = "campaign-clips"
 
 function getSupabaseAdmin(env = process.env) {
   const url = env.SUPABASE_URL
@@ -77,7 +76,8 @@ export async function uploadClipToCloud({
   if (error) throw new Error(error.message)
 
   const { data } = supabase.storage.from(BUCKET).getPublicUrl(storagePath)
-  return data?.publicUrl || null
+  const publicUrl = data?.publicUrl || null
+  return maskedClipUrl(publicUrl, env) || publicUrl
 }
 
 /** Attach cloud URLs to mix/overlay/generate API results when possible. */

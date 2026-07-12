@@ -13,6 +13,7 @@ import { requireAdmin } from "./lib/adminAuth.js"
 import { evaluateScaleMonitor, fetchSubscriberCounts } from "./lib/scaleMonitor.js"
 import { enrichResultWithCloudUrls } from "./lib/clipCloudStorage.js"
 import { registerSocialRoutes } from "./lib/socialRoutes.js"
+import { verifyClipToken, BUCKET as CLIP_BUCKET } from "./lib/clipProxy.js"
 
 import { publicAudioError, publicOverlayError } from "./lib/publicErrors.js"
 
@@ -78,6 +79,39 @@ app.post(
 app.use(cors())
 app.use(express.json({ limit: "10mb" }))
 app.use("/api/media", express.static(MEDIA_DIR))
+
+/** Masked clip playback — subscribers see your API URL, not raw Supabase storage. */
+app.get("/api/clips/:token", async (req, res) => {
+  const secret = process.env.CLIP_URL_SIGNING_SECRET
+  if (!secret) {
+    return res.status(503).json({ error: "Clip proxy is not configured." })
+  }
+
+  const storagePath = verifyClipToken(req.params.token, secret)
+  if (!storagePath) {
+    return res.status(404).json({ error: "Invalid or expired clip link." })
+  }
+
+  const supabase = getSupabase()
+  if (!supabase) {
+    return res.status(503).json({ error: "Storage is not configured." })
+  }
+
+  try {
+    const { data, error } = await supabase.storage.from(CLIP_BUCKET).download(storagePath)
+    if (error || !data) {
+      return res.status(404).json({ error: "Clip not found." })
+    }
+
+    const buffer = Buffer.from(await data.arrayBuffer())
+    res.setHeader("Content-Type", "video/mp4")
+    res.setHeader("Cache-Control", "private, max-age=3600")
+    res.send(buffer)
+  } catch (err) {
+    console.error("Clip proxy error:", err.message)
+    res.status(500).json({ error: "Could not load clip." })
+  }
+})
 
 function checkoutSessionOwnerId(session) {
   return session.client_reference_id || session.metadata?.userId || null

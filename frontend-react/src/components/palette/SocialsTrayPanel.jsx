@@ -4,6 +4,7 @@ import { useTheme } from "../../context/ThemeContext"
 import { SOCIAL_PLATFORMS } from "../../lib/socialPlatforms"
 import { studioKeyFromSetup } from "../../lib/paletteStudioStorage"
 import { loadSocialsTray } from "../../lib/socialsTrayStorage"
+import { trayItemPlaybackUrl } from "../../lib/studioSteps"
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:4242"
 
@@ -80,7 +81,7 @@ export default function SocialsTrayPanel({
   }, [refresh])
 
   const active = items[activeIndex] || items[0] || null
-  const src = active ? resolveMediaUrl(active.videoUrl) : null
+  const src = active ? resolveMediaUrl(trayItemPlaybackUrl(active)) : null
 
   function goToPaletteEditor() {
     document.getElementById("palette-editor")?.scrollIntoView({ behavior: "smooth", block: "start" })
