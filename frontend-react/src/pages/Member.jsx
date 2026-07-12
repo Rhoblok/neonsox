@@ -16,11 +16,15 @@ const ANNOUNCEMENTS = [
 export default function Member() {
   const navigate = useNavigate()
   const { colors, tokens } = useTheme()
-  const { user, isAuthenticated, loading, isAdmin, hasMembership, hasCampaign } = useAuth()
+  const { user, isAuthenticated, loading, isAdmin, hasMembership, hasCampaign, refreshProfile } = useAuth()
 
   useEffect(() => {
     if (!loading && !isAuthenticated) navigate("/login")
   }, [loading, isAuthenticated, navigate])
+
+  useEffect(() => {
+    if (isAuthenticated) refreshProfile()
+  }, [isAuthenticated, refreshProfile])
 
   if (loading || !isAuthenticated) {
     return (

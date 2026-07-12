@@ -1,13 +1,12 @@
-import { createContext, useContext, useEffect, useState } from "react"
+import { createContext, useContext, useEffect, useState, useCallback } from "react"
 import { supabase } from "../lib/supabase"
 
 const AuthContext = createContext(null)
 
 const FLAGS_KEY = "neonsox-flags"
 
-// Admin is determined by matching the owner email for now. This is a frontend
-// convenience only — real authorization must be enforced server-side via Supabase
-// Row-Level Security / a roles table. (On the roadmap.)
+// Admin preview overrides (optional manual toggles on /admin). Payment truth
+// comes from Supabase profiles.has_membership / has_campaign.
 const ADMIN_EMAIL = (import.meta.env.VITE_ADMIN_EMAIL || "").trim().toLowerCase()
 
 function readFlags() {
@@ -33,14 +32,14 @@ function isAdminEmail(email) {
   return !!ADMIN_EMAIL && (email || "").trim().toLowerCase() === ADMIN_EMAIL
 }
 
-async function fetchProfileRole(userId) {
+async function fetchProfile(userId) {
   const { data, error } = await supabase
     .from("profiles")
-    .select("role")
+    .select("role, has_membership, has_campaign")
     .eq("id", userId)
     .single()
-  if (error || !data?.role) return null
-  return data.role
+  if (error || !data) return null
+  return data
 }
 
 function roleIsAdmin(role, email) {
@@ -50,10 +49,12 @@ function roleIsAdmin(role, email) {
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [flags, setFlags] = useState(readFlags)
-  // Role from the Supabase `profiles` table (server-side source of truth). Falls
-  // back to email-match until the profiles table + RLS are set up.
   const [profileRole, setProfileRole] = useState(null)
+  const [membershipFromDb, setMembershipFromDb] = useState(false)
+  const [campaignFromDb, setCampaignFromDb] = useState(false)
+  const [profileReady, setProfileReady] = useState(false)
+  // Admin-only preview overrides (localStorage); ignored for normal members.
+  const [adminOverrides, setAdminOverrides] = useState(readFlags)
 
   // Restore session on load + subscribe to auth changes.
   useEffect(() => {
@@ -75,17 +76,32 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
-  // Fetch the user's role from `profiles`. Gracefully ignores a missing table so
-  // the app keeps working before the migration is run.
+  // Load role + payment flags from Supabase profiles.
   useEffect(() => {
     if (!user) {
       setProfileRole(null)
+      setMembershipFromDb(false)
+      setCampaignFromDb(false)
+      setProfileReady(true)
       return
     }
+
     let active = true
-    fetchProfileRole(user.id).then((role) => {
-      if (active) setProfileRole(role)
+    setProfileReady(false)
+
+    fetchProfile(user.id).then((profile) => {
+      if (!active) return
+      if (profile) {
+        setProfileRole(profile.role || null)
+        setMembershipFromDb(!!profile.has_membership)
+        setCampaignFromDb(!!profile.has_campaign)
+      }
+      if (isAdminEmail(user.email)) {
+        setAdminOverrides({ hasMembership: true, hasCampaign: true })
+      }
+      setProfileReady(true)
     })
+
     return () => {
       active = false
     }
@@ -93,15 +109,33 @@ export function AuthProvider({ children }) {
 
   const isAdmin = !!user && roleIsAdmin(profileRole, user.email)
 
-  // Admins start fully unlocked; signed-out resets the preview flags.
+  // Known admin email: unlocked immediately so refresh never flashes "locked".
+  const hasMembership = isAdmin
+    ? isAdminEmail(user?.email)
+      ? true
+      : adminOverrides.hasMembership
+    : membershipFromDb
+  const hasCampaign = isAdmin
+    ? isAdminEmail(user?.email)
+      ? true
+      : adminOverrides.hasCampaign
+    : campaignFromDb
+
   useEffect(() => {
-    if (isAdmin) setFlags({ hasMembership: true, hasCampaign: true })
-    else if (!user) setFlags({ hasMembership: false, hasCampaign: false })
+    if (isAdmin && !isAdminEmail(user?.email)) {
+      setAdminOverrides({ hasMembership: true, hasCampaign: true })
+    } else if (!user) {
+      setAdminOverrides({ hasMembership: false, hasCampaign: false })
+    }
   }, [isAdmin, user])
 
   useEffect(() => {
-    window.localStorage.setItem(FLAGS_KEY, JSON.stringify(flags))
-  }, [flags])
+    if (isAdmin) {
+      window.localStorage.setItem(FLAGS_KEY, JSON.stringify(adminOverrides))
+    } else if (!user) {
+      window.localStorage.removeItem(FLAGS_KEY)
+    }
+  }, [adminOverrides, isAdmin, user])
 
   const signIn = async (email, password) => {
     const { data, error } = await supabase.auth.signInWithPassword({
@@ -109,9 +143,13 @@ export function AuthProvider({ children }) {
       password,
     })
     if (error) return { ok: false, error: error.message }
-    const role = await fetchProfileRole(data.user.id)
-    setProfileRole(role)
-    return { ok: true, isAdmin: roleIsAdmin(role, data.user?.email) }
+    const profile = await fetchProfile(data.user.id)
+    if (profile) {
+      setProfileRole(profile.role || null)
+      setMembershipFromDb(!!profile.has_membership)
+      setCampaignFromDb(!!profile.has_campaign)
+    }
+    return { ok: true, isAdmin: roleIsAdmin(profile?.role, data.user?.email) }
   }
 
   const signUp = async (email, password, name) => {
@@ -128,6 +166,25 @@ export function AuthProvider({ children }) {
   const signOut = async () => {
     await supabase.auth.signOut()
     setUser(null)
+    setProfileRole(null)
+    setMembershipFromDb(false)
+    setCampaignFromDb(false)
+  }
+
+  const refreshProfile = useCallback(async () => {
+    if (!user) return
+    const profile = await fetchProfile(user.id)
+    if (!profile) return
+    setProfileRole(profile.role || null)
+    setMembershipFromDb(!!profile.has_membership)
+    setCampaignFromDb(!!profile.has_campaign)
+  }, [user])
+
+  const setHasMembership = (val) => {
+    if (isAdmin) setAdminOverrides((f) => ({ ...f, hasMembership: val }))
+  }
+  const setHasCampaign = (val) => {
+    if (isAdmin) setAdminOverrides((f) => ({ ...f, hasCampaign: val }))
   }
 
   const value = {
@@ -139,10 +196,12 @@ export function AuthProvider({ children }) {
     signUp,
     signOut,
     profileRole,
-    hasMembership: flags.hasMembership,
-    hasCampaign: flags.hasCampaign,
-    setHasMembership: (val) => setFlags((f) => ({ ...f, hasMembership: val })),
-    setHasCampaign: (val) => setFlags((f) => ({ ...f, hasCampaign: val })),
+    hasMembership,
+    hasCampaign,
+    profileReady,
+    refreshProfile,
+    setHasMembership,
+    setHasCampaign,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

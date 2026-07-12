@@ -16,13 +16,15 @@ const FOOTER_COLUMNS = [
     links: [
       { label: "About Us", to: "/about" },
       { label: "Privacy Policy", to: "/privacy" },
+      { label: "Terms of Service", to: "/terms" },
     ],
   },
   {
     heading: "Account",
     links: [
-      { label: "Join Us", to: "/pricing" },
-      { label: "Member Portal", to: "/member" },
+      { label: "Home", to: "/member" },
+      { label: "Profile", to: "/profile" },
+      { label: "Pricing", to: "/pricing" },
     ],
   },
 ]

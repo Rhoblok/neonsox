@@ -1,6 +1,11 @@
-import { useState, useEffect } from "react"
-import { useNavigate, Link } from "react-router-dom"
+import { useState, useEffect, useCallback } from "react"
+import { useNavigate, Link, useLocation } from "react-router-dom"
+import { loadCampaignSetup, saveCampaignSetup } from "../lib/campaignSetupStorage"
+import { loadCampaignSetupFromSupabase, saveCampaignSetupToSupabase } from "../lib/campaignSetupSync"
+import { formatMarketSummary } from "../lib/marketCountries"
 import ThemeToggle from "../components/ThemeToggle"
+import Wordmark from "../components/Wordmark"
+import PaletteGenerationStudio from "../components/palette/PaletteGenerationStudio"
 import { useTheme } from "../context/ThemeContext"
 import { useAuth } from "../context/AuthContext"
 
@@ -12,13 +17,9 @@ const TIERS = {
   tier3: { label: "Tier 3 — $199 (60 days)", platforms: 4 },
 }
 
-const PLATFORMS = [
-  { id: "instagram", label: "Instagram" },
-  { id: "x", label: "X / Twitter" },
-  { id: "facebook", label: "Facebook" },
-  { id: "linkedin", label: "LinkedIn" },
-  { id: "tiktok", label: "TikTok" },
-]
+import { SOCIAL_PLATFORMS } from "../lib/socialPlatforms"
+
+const PLATFORMS = SOCIAL_PLATFORMS
 
 const GOALS = ["Awareness", "Traffic", "Engagement", "Conversions"]
 
@@ -29,8 +30,9 @@ function readWizard() {
 
 export default function Dashboard() {
   const { colors } = useTheme()
-  const { hasCampaign, isAuthenticated, loading, isAdmin, signOut } = useAuth()
+  const { hasCampaign, isAuthenticated, loading, isAdmin, signOut, user, profileReady } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const styles = getStyles(colors)
 
   useEffect(() => {
@@ -43,16 +45,50 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState("dashboard") // 'dashboard' | 'palette'
   const [feedType, setFeedType] = useState("personal")
 
-  const [campaign, setCampaign] = useState({
-    name: "",
-    tier: "tier1",
-    goal: "Awareness",
-    platforms: [],
-    startDate: "",
-    endDate: "",
-    focus: "",
-  })
-  const [saved, setSaved] = useState(false)
+  const [campaign, setCampaignState] = useState(() => loadCampaignSetup())
+  const [campaignReady, setCampaignReady] = useState(() => !user?.id)
+
+  const setCampaign = useCallback(
+    (next) => {
+      setCampaignState((prev) => {
+        const updated = typeof next === "function" ? next(prev) : next
+        if (user?.id) {
+          saveCampaignSetupToSupabase(user.id, updated)
+        } else {
+          saveCampaignSetup(updated)
+        }
+        return updated
+      })
+    },
+    [user?.id]
+  )
+
+  useEffect(() => {
+    if (!user?.id) {
+      setCampaignReady(true)
+      return
+    }
+    let cancelled = false
+    setCampaignReady(false)
+    loadCampaignSetupFromSupabase(user.id).then((setup) => {
+      if (!cancelled) {
+        setCampaignState(setup)
+        setCampaignReady(true)
+      }
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [user?.id])
+
+  useEffect(() => {
+    if (location.state?.activeTab) setActiveTab(location.state.activeTab)
+    if (location.state?.scrollTo) {
+      requestAnimationFrame(() => {
+        document.getElementById(location.state.scrollTo)?.scrollIntoView({ behavior: "smooth" })
+      })
+    }
+  }, [location.state])
 
   const completeWizard = (curated) => {
     setIsCurated(curated)
@@ -88,18 +124,6 @@ export default function Dashboard() {
       }
       return { ...c, startDate: val, endDate: end }
     })
-
-  const durationDays =
-    campaign.startDate && campaign.endDate
-      ? Math.max(0, Math.round((new Date(campaign.endDate) - new Date(campaign.startDate)) / 86400000))
-      : null
-
-  const canLaunch = campaign.name.trim() && campaign.platforms.length > 0 && campaign.startDate
-
-  const launch = (e) => {
-    e.preventDefault()
-    if (canLaunch) setSaved(true)
-  }
 
   if (loading || !isAuthenticated) {
     return (
@@ -143,21 +167,26 @@ export default function Dashboard() {
   // ── STEP 2: MAIN DASHBOARD (file folder, 2 tabs) ──────────
   const tabs = [
     { key: "dashboard", label: "Dashboard" },
-    { key: "palette", label: "Palette Schema", locked: !hasCampaign },
+    { key: "palette", label: "Palette Schema", locked: profileReady && !hasCampaign },
   ]
 
   return (
     <div style={styles.dashboardContainer}>
       <header style={styles.header}>
         <div>
-          <h1 style={styles.brandTitle}>NeonSox Platform</h1>
+          <h1 style={styles.brandTitle}>
+            <Wordmark size="1.45rem" />
+            <span style={styles.brandPlatform}> PLATFORM</span>
+          </h1>
           <p style={styles.statusSubtitle}>
             Mode: {isCurated ? "✨ Curated Walkthrough Active" : "📁 Blank Canvas Dashboard"}
           </p>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
-          <Link to="/" style={styles.navLink}>Home</Link>
-          <Link to="/member" style={styles.navLink}>Member</Link>
+          <Link to="/member" style={styles.navLink}>Home</Link>
+          <Link to="/profile" style={styles.navLink}>Profile</Link>
+          <Link to="/dashboard" style={styles.navLink}>Dashboard</Link>
+          <Link to="/pricing" style={styles.navLink}>Pricing</Link>
           {isAdmin && <Link to="/admin" style={styles.navLink}>Admin</Link>}
           <button style={styles.rerunBtn} onClick={rerunWizard}>↻ Re-run setup</button>
           <button
@@ -171,17 +200,24 @@ export default function Dashboard() {
       </header>
 
       {/* File-folder tabs */}
-      <div style={styles.tabRow}>
+      <div style={styles.tabRow} role="tablist" aria-label="Dashboard sections">
         {tabs.map((tab) => {
           const active = activeTab === tab.key
           return (
             <button
               key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
+              type="button"
+              role="tab"
+              id={`dashboard-tab-${tab.key}`}
+              aria-selected={active}
+              aria-controls={`dashboard-panel-${tab.key}`}
+              aria-disabled={tab.locked || undefined}
+              onClick={() => !tab.locked && setActiveTab(tab.key)}
               style={{ ...styles.tab, ...(active ? styles.tabActive : styles.tabInactive) }}
             >
               {tab.label}
-              {tab.locked && <span style={styles.lockPill}>🔒</span>}
+              {tab.locked && <span style={styles.lockPill} aria-hidden="true">🔒</span>}
+              {tab.locked && <span className="sr-only"> (locked)</span>}
             </button>
           )
         })}
@@ -190,8 +226,13 @@ export default function Dashboard() {
       {/* Folder body */}
       <div style={styles.folderBody}>
         {/* TAB 1: DASHBOARD */}
-        {activeTab === "dashboard" && (
-          <div style={styles.grid}>
+        <div
+          style={{ ...styles.grid, display: activeTab === "dashboard" ? "grid" : "none" }}
+          role="tabpanel"
+          id="dashboard-panel-dashboard"
+          aria-labelledby="dashboard-tab-dashboard"
+          hidden={activeTab !== "dashboard"}
+        >
             {/* Campaign Feed */}
             <div style={{ ...styles.card, gridColumn: "span 2" }}>
               <div style={styles.feedHeader}>
@@ -263,139 +304,176 @@ export default function Dashboard() {
               <div style={styles.listItem}># CreatorEconomy</div>
               <div style={styles.listItem}># GlowUpMarketing</div>
             </div>
-          </div>
-        )}
+        </div>
 
-        {/* TAB 2: PALETTE SCHEMA (locked until campaign paid) */}
-        {activeTab === "palette" &&
-          (hasCampaign ? (
-            <div style={styles.paletteGrid}>
-              {/* Builder form */}
-              <form style={styles.paletteFormCard} onSubmit={launch}>
+        {/* TAB 2: PALETTE SCHEMA — stay mounted so brief text is not lost on tab switch */}
+        {!profileReady && activeTab === "palette" ? (
+          <div style={styles.lockedState}>
+            <p style={{ color: colors.textMuted, margin: 0 }}>Loading palette…</p>
+          </div>
+        ) : hasCampaign ? (
+          <div
+            style={{
+              ...styles.paletteFormCard,
+              display: activeTab === "palette" ? "block" : "none",
+            }}
+            role="tabpanel"
+            id="dashboard-panel-palette"
+            aria-labelledby="dashboard-tab-palette"
+            hidden={activeTab !== "palette"}
+          >
                 <h3 style={styles.cardTitle}>Campaign Design Framework</h3>
                 <p style={{ color: colors.textFaint, margin: "0 0 20px" }}>
                   Configure your campaign, choose platforms, and lock in your run.
                 </p>
 
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>Campaign name</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Summer Neon Festival"
-                    style={styles.input}
-                    value={campaign.name}
-                    onChange={(e) => setCampaign({ ...campaign, name: e.target.value })}
-                  />
+                <div style={styles.paletteCondensedBlock}>
+                  {/* Row 1: Campaign Name · Start Date · End Date */}
+                  <div style={styles.paletteRow}>
+                    <div style={styles.compactField}>
+                      <label style={styles.compactLabel} htmlFor="campaign-name">
+                        Campaign Name
+                      </label>
+                      <input
+                        id="campaign-name"
+                        type="text"
+                        placeholder="e.g. Summer Neon Festival"
+                        style={{ ...styles.compactInput, width: "168px" }}
+                        value={campaign.name}
+                        onChange={(e) => setCampaign({ ...campaign, name: e.target.value })}
+                      />
+                    </div>
+                    <div style={styles.compactField}>
+                      <label style={styles.compactLabel} htmlFor="start-date">
+                        Start Date
+                      </label>
+                      <input
+                        id="start-date"
+                        type="date"
+                        style={{ ...styles.compactInput, width: "138px" }}
+                        value={campaign.startDate}
+                        onChange={(e) => onStartDate(e.target.value)}
+                      />
+                    </div>
+                    <div style={styles.compactField}>
+                      <label style={styles.compactLabel} htmlFor="end-date">
+                        End Date
+                      </label>
+                      <input
+                        id="end-date"
+                        type="date"
+                        style={{ ...styles.compactInput, width: "138px" }}
+                        value={campaign.endDate}
+                        onChange={(e) => setCampaign({ ...campaign, endDate: e.target.value })}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Row 2: Package tier · Primary Goal · Platforms */}
+                  <div style={styles.paletteRow}>
+                    <div style={styles.compactField}>
+                      <label style={styles.compactLabel} htmlFor="package-tier">
+                        Package tier
+                      </label>
+                      <select
+                        id="package-tier"
+                        style={{ ...styles.compactInput, width: "172px" }}
+                        value={campaign.tier}
+                        onChange={(e) => setTier(e.target.value)}
+                      >
+                        {Object.entries(TIERS).map(([key, t]) => (
+                          <option key={key} value={key}>{t.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div style={styles.compactField}>
+                      <label style={styles.compactLabel} htmlFor="primary-goal">
+                        Primary Goal
+                      </label>
+                      <select
+                        id="primary-goal"
+                        style={{ ...styles.compactInput, width: "128px" }}
+                        value={campaign.goal}
+                        onChange={(e) => setCampaign({ ...campaign, goal: e.target.value })}
+                      >
+                        {GOALS.map((g) => (
+                          <option key={g} value={g}>{g}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div style={styles.compactField}>
+                      <span style={styles.compactLabel}>Markets & languages</span>
+                      <Link
+                        to="/markets"
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "6px",
+                          padding: "8px 14px",
+                          borderRadius: "8px",
+                          border: `1px solid ${colors.accent}`,
+                          background: colors.accentSoft,
+                          color: colors.accent,
+                          fontWeight: 700,
+                          fontSize: "0.82rem",
+                          textDecoration: "none",
+                        }}
+                      >
+                        Open market map →
+                      </Link>
+                      <p style={{ margin: "6px 0 0", fontSize: "0.72rem", color: colors.textFaint, maxWidth: "220px" }}>
+                        {formatMarketSummary(campaign)}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Row 3: Platforms */}
+                  <div style={styles.paletteRow}>
+                    <div style={styles.compactPlatforms}>
+                      <span style={styles.compactLabel}>
+                        Platforms ({campaign.platforms.length}/{allowance})
+                      </span>
+                      <div style={styles.platformGrid}>
+                        {PLATFORMS.map((p) => {
+                          const on = campaign.platforms.includes(p.id)
+                          const atCap = !on && campaign.platforms.length >= allowance
+                          return (
+                            <button
+                              type="button"
+                              key={p.id}
+                              onClick={() => togglePlatform(p.id)}
+                              disabled={atCap}
+                              style={{
+                                ...styles.platformChip,
+                                ...(on ? styles.platformChipActive : {}),
+                                ...(atCap ? styles.platformChipDisabled : {}),
+                              }}
+                            >
+                              {on ? "✓ " : ""}{p.label}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px" }}>
-                  <div style={styles.formGroup}>
-                    <label style={styles.label}>Package tier</label>
-                    <select style={styles.input} value={campaign.tier} onChange={(e) => setTier(e.target.value)}>
-                      {Object.entries(TIERS).map(([key, t]) => (
-                        <option key={key} value={key}>{t.label}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div style={styles.formGroup}>
-                    <label style={styles.label}>Primary goal</label>
-                    <select
-                      style={styles.input}
-                      value={campaign.goal}
-                      onChange={(e) => setCampaign({ ...campaign, goal: e.target.value })}
-                    >
-                      {GOALS.map((g) => (
-                        <option key={g} value={g}>{g}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>
-                    Platforms{" "}
-                    <span style={{ color: colors.textFaint, fontWeight: 400 }}>
-                      ({campaign.platforms.length}/{allowance} used)
-                    </span>
-                  </label>
-                  <div style={styles.platformGrid}>
-                    {PLATFORMS.map((p) => {
-                      const on = campaign.platforms.includes(p.id)
-                      const atCap = !on && campaign.platforms.length >= allowance
-                      return (
-                        <button
-                          type="button"
-                          key={p.id}
-                          onClick={() => togglePlatform(p.id)}
-                          disabled={atCap}
-                          style={{
-                            ...styles.platformChip,
-                            ...(on ? styles.platformChipActive : {}),
-                            ...(atCap ? styles.platformChipDisabled : {}),
-                          }}
-                        >
-                          {on ? "✓ " : ""}{p.label}
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px" }}>
-                  <div style={styles.formGroup}>
-                    <label style={styles.label}>Start date</label>
-                    <input
-                      type="date"
-                      style={styles.input}
-                      value={campaign.startDate}
-                      onChange={(e) => onStartDate(e.target.value)}
+                <div id="palette-editor">
+                  {campaignReady ? (
+                    <PaletteGenerationStudio
+                      campaignSetup={campaign}
+                      onBuyNewCampaign={() => navigate("/pricing")}
+                      platforms={campaign.platforms}
+                      platformAllowance={allowance}
+                      onTogglePlatform={togglePlatform}
                     />
-                  </div>
-                  <div style={styles.formGroup}>
-                    <label style={styles.label}>End date</label>
-                    <input
-                      type="date"
-                      style={styles.input}
-                      value={campaign.endDate}
-                      onChange={(e) => setCampaign({ ...campaign, endDate: e.target.value })}
-                    />
-                  </div>
+                  ) : (
+                    <p style={{ color: colors.textMuted, margin: "16px 0 0" }}>Loading studio…</p>
+                  )}
                 </div>
-
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>Content focus</label>
-                  <textarea
-                    rows={3}
-                    placeholder="What should this campaign emphasize?"
-                    style={{ ...styles.input, resize: "vertical" }}
-                    value={campaign.focus}
-                    onChange={(e) => setCampaign({ ...campaign, focus: e.target.value })}
-                  />
-                </div>
-
-                <button type="submit" style={{ ...styles.checkoutSubmitBtn, opacity: canLaunch ? 1 : 0.5, cursor: canLaunch ? "pointer" : "not-allowed" }} disabled={!canLaunch}>
-                  Lock Parameters &amp; Launch Campaign
-                </button>
-              </form>
-
-              {/* Live summary */}
-              <aside style={styles.summaryCard}>
-                <div style={{ fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: "0.06em", color: colors.textFaint, marginBottom: "12px" }}>
-                  Live summary
-                </div>
-                {saved && (
-                  <div style={styles.savedBanner}>✓ Campaign locked &amp; queued for launch</div>
-                )}
-                <SummaryRow colors={colors} label="Name" value={campaign.name || "—"} />
-                <SummaryRow colors={colors} label="Tier" value={TIERS[campaign.tier].label.split(" — ")[0]} />
-                <SummaryRow colors={colors} label="Goal" value={campaign.goal} />
-                <SummaryRow colors={colors} label="Platforms" value={`${campaign.platforms.length}/${allowance}`} />
-                <SummaryRow colors={colors} label="Duration" value={durationDays != null ? `${durationDays} days` : "—"} />
-                <SummaryRow colors={colors} label="Status" value={saved ? "Launching" : "Draft"} highlight={saved} />
-              </aside>
-            </div>
-          ) : (
-            <div style={styles.lockedState}>
+          </div>
+        ) : activeTab === "palette" ? (
+          <div style={styles.lockedState}>
               <div style={styles.lockIconBig}>🔒</div>
               <h3 style={styles.cardTitle}>Palette Schema is locked</h3>
               <p style={{ color: colors.textMuted, maxWidth: "420px", margin: "0 auto 20px", lineHeight: 1.6 }}>
@@ -406,22 +484,13 @@ export default function Dashboard() {
                 View Campaign Tiers
               </button>
             </div>
-          ))}
+        ) : null}
       </div>
     </div>
   )
 }
 
 // ── Small presentational widgets ────────────────────────────
-function SummaryRow({ colors, label, value, highlight }) {
-  return (
-    <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", padding: "10px 0", borderBottom: `1px solid ${colors.border}` }}>
-      <span style={{ color: colors.textFaint, fontSize: "0.85rem" }}>{label}</span>
-      <span style={{ color: highlight ? colors.accent : colors.text, fontSize: "0.9rem", fontWeight: 700, textAlign: "right" }}>{value}</span>
-    </div>
-  )
-}
-
 function Sparkline({ colors }) {
   const pts = [8, 12, 9, 16, 14, 22, 18, 26, 24, 30]
   const max = Math.max(...pts)
@@ -552,7 +621,21 @@ function getStyles(colors) {
       gap: "20px",
       marginBottom: "24px",
     },
-    brandTitle: { margin: "0 0 8px", fontSize: "1.5rem", color: colors.text },
+    brandTitle: {
+      margin: "0 0 8px",
+      fontSize: "1.5rem",
+      display: "flex",
+      alignItems: "center",
+      flexWrap: "wrap",
+      gap: "2px",
+    },
+    brandPlatform: {
+      fontFamily: "'Orbitron', 'Exo 2', sans-serif",
+      fontWeight: 800,
+      letterSpacing: "2px",
+      fontSize: "1.1rem",
+      color: colors.textMuted,
+    },
     statusSubtitle: { margin: 0, color: colors.textFaint, fontSize: "0.9rem" },
     rerunBtn: {
       background: "transparent",
@@ -588,7 +671,12 @@ function getStyles(colors) {
       position: "relative",
       top: "1px",
     },
-    tabActive: { background: colors.surface, color: colors.accent },
+    tabActive: {
+      background: "#FFEB3B",
+      color: "#000000",
+      borderColor: "#FFEB3B",
+      boxShadow: "0 -2px 14px rgba(255, 235, 59, 0.45)",
+    },
     tabInactive: { background: colors.surfaceAlt, color: colors.textMuted },
     lockPill: { fontSize: "0.8rem" },
 
@@ -647,8 +735,51 @@ function getStyles(colors) {
     lockIconBig: { fontSize: "2.4rem", marginBottom: "12px" },
 
     // Palette builder
-    paletteGrid: { display: "grid", gridTemplateColumns: "minmax(0, 1.6fr) minmax(220px, 1fr)", gap: "24px", alignItems: "start" },
     paletteFormCard: { padding: "4px" },
+    paletteCondensedBlock: {
+      border: `1px solid ${colors.border}`,
+      borderRadius: "12px",
+      padding: "14px 16px",
+      display: "flex",
+      flexDirection: "column",
+      gap: "12px",
+    },
+    paletteRow: {
+      display: "flex",
+      flexWrap: "wrap",
+      alignItems: "center",
+      gap: "10px 14px",
+    },
+    compactField: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: "8px",
+      flex: "0 1 auto",
+    },
+    compactLabel: {
+      fontSize: "0.8rem",
+      color: colors.textFaint,
+      fontWeight: 600,
+      whiteSpace: "nowrap",
+    },
+    compactInput: {
+      padding: "8px 10px",
+      background: colors.bg,
+      border: `1px solid ${colors.border}`,
+      borderRadius: "8px",
+      color: colors.text,
+      fontSize: "0.85rem",
+      boxSizing: "border-box",
+      fontFamily: "inherit",
+    },
+    compactPlatforms: {
+      display: "inline-flex",
+      alignItems: "center",
+      flexWrap: "wrap",
+      gap: "8px 10px",
+      flex: "1 1 240px",
+      minWidth: 0,
+    },
     formGroup: { marginBottom: "18px" },
     label: { display: "block", marginBottom: "8px", fontSize: "0.85rem", color: colors.textFaint, fontWeight: 600 },
     input: {
@@ -664,12 +795,12 @@ function getStyles(colors) {
     },
     platformGrid: { display: "flex", flexWrap: "wrap", gap: "8px" },
     platformChip: {
-      padding: "8px 14px",
+      padding: "6px 11px",
       borderRadius: "999px",
       border: `1px solid ${colors.border}`,
       background: colors.bg,
       color: colors.textMuted,
-      fontSize: "0.85rem",
+      fontSize: "0.78rem",
       fontWeight: 600,
       cursor: "pointer",
     },
@@ -684,23 +815,6 @@ function getStyles(colors) {
       fontWeight: 700,
       cursor: "pointer",
       fontSize: "0.95rem",
-    },
-    summaryCard: {
-      background: colors.bg,
-      border: `1px solid ${colors.border}`,
-      borderRadius: "12px",
-      padding: "20px",
-      position: "sticky",
-      top: "20px",
-    },
-    savedBanner: {
-      background: colors.accentSoft,
-      color: colors.accent,
-      borderRadius: "8px",
-      padding: "10px 12px",
-      fontSize: "0.85rem",
-      fontWeight: 700,
-      marginBottom: "12px",
     },
   }
 }

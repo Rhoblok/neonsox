@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>NEONSOX Launch Cost Model</title>
+  <style>
+    @page { size: landscape; margin: 12mm; }
+    body { font-family: Segoe UI, Arial, sans-serif; color: #111; font-size: 11px; line-height: 1.45; margin: 0; padding: 16px 20px; }
+    h1 { font-size: 20px; margin: 0 0 4px; }
+    h2 { font-size: 14px; margin: 24px 0 10px; page-break-after: avoid; }
+    .sub { color: #444; margin-bottom: 14px; }
+    .assumptions, .note { background: #f4f6f8; border: 1px solid #d0d7de; padding: 10px 12px; margin-bottom: 14px; border-radius: 6px; }
+    .note-warn { background: #fff8e6; border-color: #e6c200; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+    .chart-box { border: 1px solid #d0d7de; border-radius: 6px; padding: 10px; background: #fff; page-break-inside: avoid; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 16px; page-break-inside: avoid; }
+    th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: right; }
+    th:first-child, td:first-child { text-align: left; }
+    th { background: #1a2332; color: #fff; font-weight: 600; }
+    tr:nth-child(even):not(.section):not(.total) td { background: #fafafa; }
+    tr.section td { background: #1a2332; color: #fff; font-weight: 700; text-align: left; padding: 7px 10px; }
+    tr.total td { background: #dbeafe; font-weight: 700; }
+    .footer { color: #666; font-size: 10px; margin-top: 16px; }
+    ul { margin: 6px 0 0 18px; padding: 0; }
+    li { margin-bottom: 4px; }
+  </style>
+</head>
+<body>
+  <h1>NEONSOX — Launch Cost Model</h1>
+  <p class="sub">Subscribers per month (columns) · Option B: Runway + ElevenLabs + social · Generated 7/4/2026</p>
+
+  <div class="assumptions">
+    <strong>Assumptions:</strong>
+    Membership $9.99/mo per subscriber ·
+    0.35 campaigns per subscriber per month (~1 every 3 mo) × $149 avg campaign ·
+    3.5 video gens per campaign · $1.35/gen ·
+    Reddit $1000/mo commercial · Signal excluded.
+  </div>
+
+  <h2>Master spreadsheet</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Line item</th>
+        <th>100 subs</th>
+        <th>1K subs</th>
+        <th>5K subs</th>
+        <th>10K subs</th>
+        <th>100K subs</th>
+      </tr>
+    </thead>
+    <tbody><tr class="section"><td colspan="6">COSTS</td></tr>
+<tr><td>Infrastructure (Supabase, storage, compute, Vercel)</td><td>$65</td><td>$105</td><td>$225</td><td>$980</td><td>$2,509</td></tr>
+<tr><td>ElevenLabs plan (fixed tier)</td><td>$22</td><td>$99</td><td>$99</td><td>$299</td><td>$990</td></tr>
+<tr><td>Runway + ElevenLabs API (variable)</td><td>$165</td><td>$1,654</td><td>$8,269</td><td>$16,538</td><td>$165,375</td></tr>
+<tr><td>Reddit commercial API</td><td>$1,000</td><td>$1,000</td><td>$1,000</td><td>$1,000</td><td>$1,000</td></tr>
+<tr><td>X API (pay-per-use)</td><td>$158</td><td>$1,575</td><td>$7,875</td><td>$15,750</td><td>$157,500</td></tr>
+<tr><td>Social API — unified (Bluesky, TG, Discord, TikTok)</td><td>$22</td><td>$223</td><td>$1,116</td><td>$2,231</td><td>$22,313</td></tr>
+<tr><td>Stripe fees (2.9% + $0.30/charge)</td><td>$221</td><td>$2,207</td><td>$11,035</td><td>$22,071</td><td>$220,706</td></tr>
+<tr class="total"><td>Σ ALL COSTS</td><td>$1,653</td><td>$6,863</td><td>$29,619</td><td>$58,868</td><td>$570,393</td></tr>
+<tr class="section"><td colspan="6">REVENUE</td></tr>
+<tr><td>Subscription ($9.99/mo × subscribers)</td><td>$999</td><td>$9,990</td><td>$49,950</td><td>$99,900</td><td>$999,000</td></tr>
+<tr><td>Campaign ($149 × 0.35 per sub)</td><td>$5,215</td><td>$52,150</td><td>$260,750</td><td>$521,500</td><td>$5.21M</td></tr>
+<tr class="total"><td>Σ ALL REVENUE</td><td>$6,214</td><td>$62,140</td><td>$310,700</td><td>$621,400</td><td>$6.21M</td></tr>
+<tr class="section"><td colspan="6">SUMMARY</td></tr>
+<tr class="total"><td>PROFIT (revenue − costs)</td><td>$4,561</td><td>$55,277</td><td>$281,081</td><td>$562,532</td><td>$5.64M</td></tr>
+<tr class="total"><td>MARGIN</td><td>73.4%</td><td>89.0%</td><td>90.5%</td><td>90.5%</td><td>90.8%</td></tr>
+<tr><td>Effective campaigns / mo</td><td>35</td><td>350</td><td>1750</td><td>3500</td><td>35000</td></tr>
+<tr><td>Revenue per subscriber / mo</td><td>$62.14</td><td>$62.14</td><td>$62.14</td><td>$62.14</td><td>$62.14</td></tr>
+<tr><td>Cost per subscriber / mo</td><td>$16.53</td><td>$6.86</td><td>$5.92</td><td>$5.89</td><td>$5.70</td></tr></tbody>
+  </table>
+
+  <h2>Charts</h2>
+  <div class="grid-2">
+    <div class="chart-box">
+      <svg viewBox="0 0 680 210" width="100%" role="img" aria-label="Cost mix at 10,000 subscribers"><text x="340" y="18" text-anchor="middle" font-size="13" font-weight="600" fill="#111">Cost mix at 10,000 subscribers</text>
+        <text x="112" y="40.754285714285714" text-anchor="end" font-size="11" fill="#333">Stripe</text>
+        <rect x="120" y="28" width="536" height="17.714285714285715" fill="#2563eb" rx="3"/>
+        <text x="662" y="40.754285714285714" font-size="10" fill="#555">$22,071</text>
+        <text x="112" y="64.46857142857144" text-anchor="end" font-size="11" fill="#333">Runway+EL</text>
+        <rect x="120" y="51.714285714285715" width="401.62478591429317" height="17.714285714285715" fill="#059669" rx="3"/>
+        <text x="527.6247859142932" y="64.46857142857144" font-size="10" fill="#555">$16,538</text>
+        <text x="112" y="88.18285714285715" text-anchor="end" font-size="11" fill="#333">X API</text>
+        <rect x="120" y="75.42857142857143" width="382.49979610885066" height="17.714285714285715" fill="#7c3aed" rx="3"/>
+        <text x="508.49979610885066" y="88.18285714285715" font-size="10" fill="#555">$15,750</text>
+        <text x="112" y="111.89714285714285" text-anchor="end" font-size="11" fill="#333">Social</text>
+        <rect x="120" y="99.14285714285714" width="54.18747111542051" height="17.714285714285715" fill="#ea580c" rx="3"/>
+        <text x="180.18747111542052" y="111.89714285714285" font-size="10" fill="#555">$2,231</text>
+        <text x="112" y="135.61142857142858" text-anchor="end" font-size="11" fill="#333">Reddit</text>
+        <rect x="120" y="122.85714285714286" width="24.285701340244486" height="17.714285714285715" fill="#0891b2" rx="3"/>
+        <text x="150.2857013402445" y="135.61142857142858" font-size="10" fill="#555">$1,000</text>
+        <text x="112" y="159.3257142857143" text-anchor="end" font-size="11" fill="#333">Infra</text>
+        <rect x="120" y="146.57142857142858" width="23.799987313439598" height="17.714285714285715" fill="#ca8a04" rx="3"/>
+        <text x="149.7999873134396" y="159.3257142857143" font-size="10" fill="#555">$980</text>
+        <text x="112" y="183.04" text-anchor="end" font-size="11" fill="#333">EL plan</text>
+        <rect x="120" y="170.28571428571428" width="7.261424700733101" height="17.714285714285715" fill="#db2777" rx="3"/>
+        <text x="133.2614247007331" y="183.04" font-size="10" fill="#555">$299</text></svg>
+      <p style="margin:8px 0 0;font-size:10px;color:#555;">10K subs × 0.35 campaigns/sub = 3500 effective campaigns/mo</p>
+    </div>
+    <div class="chart-box">
+      <svg viewBox="0 0 680 260" width="100%" role="img"><text x="340" y="22" text-anchor="middle" font-size="13" font-weight="600" fill="#111">Revenue vs costs by subscriber tier</text><rect x="48" y="8" width="10" height="10" fill="#2563eb"/><text x="64" y="17" font-size="10" fill="#333">Total revenue</text><rect x="188" y="8" width="10" height="10" fill="#059669"/><text x="204" y="17" font-size="10" fill="#333">Total costs</text><rect x="81.6" y="207.824" width="24" height="0.176" fill="#2563eb" rx="2"/><rect x="109.6" y="207.9531848638558" width="24" height="0.04681513614419054" fill="#059669" rx="2"/><text x="109.6" y="242" text-anchor="middle" font-size="10" fill="#333">100</text><rect x="204.79999999999998" y="206.24" width="24" height="1.76" fill="#2563eb" rx="2"/><rect x="232.79999999999998" y="207.80562012230448" width="24" height="0.19437987769552625" fill="#059669" rx="2"/><text x="232.79999999999998" y="242" text-anchor="middle" font-size="10" fill="#333">1K</text><rect x="328" y="199.2" width="24" height="8.8" fill="#2563eb" rx="2"/><rect x="356" y="207.1611060830383" width="24" height="0.8388939169616995" fill="#059669" rx="2"/><text x="356" y="242" text-anchor="middle" font-size="10" fill="#333">5K</text><rect x="451.20000000000005" y="190.4" width="24" height="17.6" fill="#2563eb" rx="2"/><rect x="479.20000000000005" y="206.33266340521402" width="24" height="1.6673365947859673" fill="#059669" rx="2"/><text x="479.20000000000005" y="242" text-anchor="middle" font-size="10" fill="#333">10K</text><rect x="574.4" y="32" width="24" height="176" fill="#2563eb" rx="2"/><rect x="602.4" y="191.8446926295462" width="24" height="16.155307370453812" fill="#059669" rx="2"/><text x="602.4" y="242" text-anchor="middle" font-size="10" fill="#333">100K</text></svg>
+    </div>
+  </div>
+  <div class="chart-box" style="max-width:680px;">
+    <svg viewBox="0 0 680 260" width="100%" role="img"><text x="340" y="22" text-anchor="middle" font-size="13" font-weight="600" fill="#111">Monthly profit by subscriber tier</text><rect x="48" y="8" width="10" height="10" fill="#2563eb"/><text x="64" y="17" font-size="10" fill="#333">Monthly profit</text><rect x="95.6" y="207.85775858012803" width="24" height="0.14224141987195246" fill="#2563eb" rx="2"/><text x="109.6" y="242" text-anchor="middle" font-size="10" fill="#333">100</text><rect x="218.79999999999998" y="206.27614456887727" width="24" height="1.7238554311227348" fill="#2563eb" rx="2"/><text x="232.79999999999998" y="242" text-anchor="middle" font-size="10" fill="#333">1K</text><rect x="342" y="199.234274672716" width="24" height="8.765725327284011" fill="#2563eb" rx="2"/><text x="356" y="242" text-anchor="middle" font-size="10" fill="#333">5K</text><rect x="465.20000000000005" y="190.4570418123514" width="24" height="17.54295818764859" fill="#2563eb" rx="2"/><text x="479.20000000000005" y="242" text-anchor="middle" font-size="10" fill="#333">10K</text><rect x="588.4" y="32" width="24" height="176" fill="#2563eb" rx="2"/><text x="602.4" y="242" text-anchor="middle" font-size="10" fill="#333">100K</text></svg>
+  </div>
+
+  <h2>Infrastructure detail</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Line item</th>
+        <th>100 subs</th>
+        <th>1K subs</th>
+        <th>5K subs</th>
+        <th>10K subs</th>
+        <th>100K subs</th>
+      </tr>
+    </thead>
+    <tbody><tr><td>Supabase</td><td>$25</td><td>$25</td><td>$25</td><td>$599</td><td>$599</td></tr>
+<tr><td>Storage</td><td>$5</td><td>$15</td><td>$55</td><td>$86</td><td>$500</td></tr>
+<tr><td>Compute (backend + ffmpeg)</td><td>$15</td><td>$40</td><td>$110</td><td>$210</td><td>$960</td></tr>
+<tr><td>Vercel</td><td>$20</td><td>$20</td><td>$20</td><td>$50</td><td>$200</td></tr>
+<tr><td>Auth MAU overage</td><td>$0</td><td>$0</td><td>$0</td><td>$0</td><td>$65</td></tr>
+<tr><td>Egress</td><td>$0</td><td>$5</td><td>$15</td><td>$35</td><td>$185</td></tr>
+<tr class="total"><td>Infra subtotal</td><td>$65</td><td>$105</td><td>$225</td><td>$980</td><td>$2,509</td></tr></tbody>
+  </table>
+
+  <h2>Per-subscriber unit economics (at 10K subs)</h2>
+  <table style="max-width:480px;">
+    <thead><tr><th>Metric</th><th>Value</th></tr></thead>
+    <tbody><tr><td>Subscription revenue / sub / mo</td><td>$9.99</td></tr>
+<tr><td>Campaign revenue / sub / mo</td><td>$52.15</td></tr>
+<tr><td>Total revenue / sub / mo</td><td>$62.14</td></tr>
+<tr><td>Total cost / sub / mo</td><td>$5.89</td></tr>
+<tr><td>Profit / sub / mo</td><td>$56.25</td></tr>
+<tr><td>Video generation API cost</td><td>$1.35 per gen</td></tr>
+<tr><td>Campaigns per sub (assumed)</td><td>0.35/mo</td></tr></tbody>
+  </table>
+
+  <div class="note note-warn">
+    <strong>Tune the model</strong>
+    <ul>
+      <li>Change <strong>campaigns per subscriber</strong> if attach rate differs (0.2 = 1 every 5 mo · 0.5 = 1 every 2 mo).</li>
+      <li>Reddit $1K/mo flat hurts at 100 subs — delay commercial Reddit until ~500+ subscribers.</li>
+      <li>Skip X in Phase 1 to cut social API ~25%. Signal has no posting API.</li>
+    </ul>
+  </div>
+
+  <p class="footer">NEONSOX Platform · Internal planning document · API costs are estimates from public pricing Jul 2026</p>
+</body>
+</html>

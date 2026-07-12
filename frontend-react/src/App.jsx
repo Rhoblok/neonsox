@@ -5,11 +5,15 @@ import Pricing from "./pages/Pricing"
 import About from "./pages/About"
 import Features from "./pages/Features"
 import Privacy from "./pages/Privacy"
+import Terms from "./pages/Terms"
 import Admin from "./pages/Admin"
+import Profile from "./pages/Profile"
+import MarketSelector from "./pages/MarketSelector"
 import Login from "./components/Login"
 import Signup from "./components/Signup"
-import { useLocation, useNavigate, Link } from 'react-router-dom';
+import { useLocation, useNavigate, Link, Navigate } from 'react-router-dom';
 import { useTheme } from './context/ThemeContext';
+import { useAuth } from './context/AuthContext';
 import './App.css';
 import logoImage from './assets/Picture1.svg';
 import sidePhoto from './assets/img_1506.jpeg'; 
@@ -18,10 +22,16 @@ function App() {
   const location = useLocation();
   const navigate = useNavigate();
   const pathname = location.pathname;
-  const isStandaloneRoute = ["/pricing", "/success", "/member", "/dashboard", "/about", "/features", "/privacy", "/admin", "/login", "/signup"].includes(pathname);
 
   const { isDark, toggle: toggleTheme } = useTheme();
+  const { isAuthenticated, loading } = useAuth();
   const isDarkMode = isDark;
+
+  const isStandaloneRoute = ["/pricing", "/success", "/member", "/profile", "/dashboard", "/markets", "/about", "/features", "/privacy", "/terms", "/admin", "/login", "/signup"].includes(pathname);
+
+  if (!loading && pathname === "/" && isAuthenticated) {
+    return <Navigate to="/member" replace />
+  }
 
   if (isStandaloneRoute) {
     return (
@@ -29,10 +39,13 @@ function App() {
         {pathname === "/pricing" && <Pricing />}
         {pathname === "/success" && <Success />}
         {pathname === "/member" && <Member />}
+        {pathname === "/profile" && <Profile />}
         {pathname === "/dashboard" && <Dashboard />}
+        {pathname === "/markets" && <MarketSelector />}
         {pathname === "/about" && <About />}
         {pathname === "/features" && <Features />}
         {pathname === "/privacy" && <Privacy />}
+        {pathname === "/terms" && <Terms />}
         {pathname === "/admin" && <Admin />}
         {pathname === "/login" && <Login />}
         {pathname === "/signup" && <Signup />}
@@ -146,6 +159,7 @@ function App() {
                 <h4>Company</h4>
                 <Link to="/about">About Us</Link>
                 <Link to="/privacy">Privacy Policy</Link>
+                <Link to="/terms">Terms of Service</Link>
                 <a href="#">Blog</a>
                 <a href="#">Careers</a>
               </div>

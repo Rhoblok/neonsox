@@ -45,16 +45,17 @@ export default function Header() {
         borderBottom: `1px solid ${colors.border}`,
       }}
     >
-      <Link to="/" style={{ textDecoration: "none" }}>
+      <Link to={isAuthenticated ? "/member" : "/"} style={{ textDecoration: "none" }}>
         <Wordmark size="1.5rem" withTM />
       </Link>
 
       <nav style={{ display: "flex", alignItems: "center", gap: "20px", flexWrap: "wrap" }}>
         {isAuthenticated ? (
           <>
-            <Link to="/" style={linkStyle(pathname === "/")}>Home</Link>
-            <Link to="/member" style={linkStyle(pathname === "/member")}>Member</Link>
+            <Link to="/member" style={linkStyle(pathname === "/member")}>Home</Link>
+            <Link to="/profile" style={linkStyle(pathname === "/profile")}>Profile</Link>
             <Link to="/dashboard" style={linkStyle(pathname === "/dashboard")}>Dashboard</Link>
+            <Link to="/pricing" style={linkStyle(pathname === "/pricing")}>Pricing</Link>
             {isAdmin && (
               <Link to="/admin" style={linkStyle(pathname === "/admin")}>Admin</Link>
             )}

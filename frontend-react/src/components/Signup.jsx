@@ -17,7 +17,7 @@ export default function Signup() {
   const [confirm, setConfirm] = useState("")
   const [error, setError] = useState("")
   const [submitting, setSubmitting] = useState(false)
-  const [confirmSent, setConfirmSent] = useState(false)
+  const [acceptTerms, setAcceptTerms] = useState(false)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -28,6 +28,10 @@ export default function Signup() {
     }
     if (password !== confirm) {
       setError("Passwords do not match.")
+      return
+    }
+    if (!acceptTerms) {
+      setError("Please agree to the Terms of Service to create an account.")
       return
     }
     setSubmitting(true)
@@ -160,7 +164,34 @@ export default function Signup() {
                 <div style={{ color: colors.danger, fontSize: "0.85rem", marginBottom: "14px" }}>{error}</div>
               )}
 
-              <NeonButton type="submit" fullWidth size="lg" disabled={submitting}>
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: "10px",
+                  marginBottom: "16px",
+                  cursor: "pointer",
+                  fontSize: "0.82rem",
+                  color: colors.textMuted,
+                  lineHeight: 1.5,
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={acceptTerms}
+                  onChange={(e) => setAcceptTerms(e.target.checked)}
+                  style={{ marginTop: "3px", flexShrink: 0 }}
+                />
+                <span>
+                  I agree to the{" "}
+                  <Link to="/terms" target="_blank" style={{ color: colors.accent, fontWeight: 700 }}>
+                    Terms of Service
+                  </Link>
+                  . Fraud or abuse → ban.
+                </span>
+              </label>
+
+              <NeonButton type="submit" fullWidth size="lg" disabled={submitting || !acceptTerms}>
                 {submitting ? "Creating account…" : "Sign up"}
               </NeonButton>
             </form>

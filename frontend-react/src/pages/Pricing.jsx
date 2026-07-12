@@ -1,3 +1,5 @@
+import { useEffect } from "react"
+import { useNavigate, Link } from "react-router-dom"
 import Layout from "../components/Layout"
 import Card from "../components/Card"
 import NeonButton from "../components/NeonButton"
@@ -10,6 +12,8 @@ const STRIPE_DATA = {
   tier2: { id: "price_1TiJnMF2RIMjk7tqB3qQLoGQ", mode: "payment" },
   tier3: { id: "price_1TiJp0F2RIMjk7tqpaRskSB3", mode: "payment" },
 }
+
+const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:4242"
 
 const MEMBERSHIP = {
   price: "$9.99",
@@ -51,48 +55,112 @@ const CAMPAIGN_TIERS = [
 ]
 
 export default function Pricing() {
+  const navigate = useNavigate()
   const { colors, tokens } = useTheme()
 
-  // Membership status comes from auth (admin can unlock to preview). Campaign tiers
-  // stay locked until the base membership is active (membership must come first).
-  const { hasMembership } = useAuth()
+  const { hasMembership, hasCampaign, user, isAuthenticated, refreshProfile } = useAuth()
+
+  useEffect(() => {
+    if (isAuthenticated) refreshProfile()
+  }, [isAuthenticated, refreshProfile])
 
   const handleCheckout = async (priceId, mode) => {
+    if (!isAuthenticated || !user?.id) {
+      navigate("/login")
+      return
+    }
     try {
-      const res = await fetch("http://localhost:4242/api/checkout", {
+      const res = await fetch(`${API_BASE}/api/checkout`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ priceId, mode }),
+        body: JSON.stringify({
+          priceId,
+          mode,
+          userId: user.id,
+          email: user.email,
+        }),
       })
       const data = await res.json()
       if (data.url) {
         window.location.href = data.url
       } else {
-        alert("Checkout failed — please try again.")
+        alert(data.error || "Checkout failed — please try again.")
       }
     } catch {
       alert("Could not reach checkout. Is the backend running on port 4242?")
     }
   }
 
-  const Badge = ({ children, tone = "accent" }) => (
+  const Badge = ({ children, tone = "accent" }) => {
+    const tones = {
+      accent: {
+        background: colors.accentSoft,
+        color: colors.accent,
+        border: "none",
+      },
+      muted: {
+        background: "transparent",
+        color: colors.textFaint,
+        border: `1px solid ${colors.border}`,
+      },
+      success: {
+        background: "rgba(34, 197, 94, 0.15)",
+        color: "#4ade80",
+        border: "1px solid rgba(74, 222, 128, 0.45)",
+      },
+      danger: {
+        background: "rgba(239, 68, 68, 0.12)",
+        color: "#f87171",
+        border: "1px solid rgba(248, 113, 113, 0.4)",
+      },
+      warning: {
+        background: "rgba(251, 191, 36, 0.12)",
+        color: "#fbbf24",
+        border: "1px solid rgba(251, 191, 36, 0.35)",
+      },
+    }
+    const t = tones[tone] || tones.accent
+
+    return (
+      <span
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: "6px",
+          background: t.background,
+          color: t.color,
+          border: t.border,
+          padding: "4px 12px",
+          borderRadius: tokens.radius.pill,
+          fontSize: "0.7rem",
+          fontWeight: 700,
+          textTransform: "uppercase",
+          letterSpacing: "0.06em",
+        }}
+      >
+        {children}
+      </span>
+    )
+  }
+
+  const StatusLight = ({ ok, pulse = false }) => (
     <span
+      aria-hidden
       style={{
-        display: "inline-block",
-        background: tone === "accent" ? colors.accentSoft : "transparent",
-        color: tone === "accent" ? colors.accent : colors.textFaint,
-        border: tone === "accent" ? "none" : `1px solid ${colors.border}`,
-        padding: "4px 12px",
-        borderRadius: tokens.radius.pill,
-        fontSize: "0.7rem",
-        fontWeight: 700,
-        textTransform: "uppercase",
-        letterSpacing: "0.06em",
+        width: "10px",
+        height: "10px",
+        borderRadius: "50%",
+        flexShrink: 0,
+        background: ok ? "#22c55e" : "#ef4444",
+        boxShadow: ok
+          ? "0 0 10px rgba(34, 197, 94, 0.75)"
+          : "0 0 10px rgba(239, 68, 68, 0.55)",
+        animation: pulse ? "pricing-status-pulse 1.6s ease-in-out infinite" : "none",
       }}
-    >
-      {children}
-    </span>
+    />
   )
+
+  const membershipOk = hasMembership
 
   const Yes = () => <span style={{ color: colors.accent, marginRight: "8px", fontWeight: 700 }}>✓</span>
 
@@ -129,13 +197,44 @@ export default function Pricing() {
         <strong style={{ color: colors.text }}>3. Campaign Features</strong>
       </div>
 
+      {membershipOk && !hasCampaign && (
+        <div
+          style={{
+            marginBottom: "24px",
+            padding: "14px 18px",
+            borderRadius: tokens.radius.md,
+            border: `1px solid ${colors.border}`,
+            background: colors.surfaceAlt,
+            color: colors.textMuted,
+            fontSize: "0.92rem",
+            textAlign: "center",
+            lineHeight: 1.5,
+          }}
+        >
+          <strong style={{ color: colors.text }}>Step 1 is complete.</strong> There is no Subscribe button because your
+          membership is already active. Scroll down and click <strong>Buy Tier 1</strong> (or Tier 2 / 3) to unlock
+          Palette Studio.
+        </div>
+      )}
+
       {/* Membership — required, Step 1 */}
       <Card highlight style={{ marginBottom: "40px" }}>
         <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: "20px" }}>
           <div style={{ flex: "1 1 320px" }}>
-            <div style={{ marginBottom: "10px", display: "flex", gap: "8px" }}>
+            <div style={{ marginBottom: "10px", display: "flex", gap: "8px", flexWrap: "wrap" }}>
               <Badge>Required</Badge>
               <Badge tone="muted">Step 1</Badge>
+              {hasMembership ? (
+                <Badge tone="success">
+                  <StatusLight ok />
+                  Active
+                </Badge>
+              ) : (
+                <Badge tone="danger">
+                  <StatusLight ok={false} pulse />
+                  Not subscribed
+                </Badge>
+              )}
             </div>
             <h2 style={{ margin: "0 0 6px", color: colors.text, fontSize: "1.5rem" }}>Base Membership</h2>
             <p style={{ margin: "0 0 16px", color: colors.textMuted, lineHeight: 1.5 }}>
@@ -160,13 +259,29 @@ export default function Pricing() {
               {MEMBERSHIP.price}
               <span style={{ fontSize: "0.9rem", color: colors.textFaint, fontWeight: 500 }}> {MEMBERSHIP.cadence}</span>
             </div>
-            <NeonButton
-              size="lg"
-              style={{ marginTop: "12px" }}
-              onClick={() => handleCheckout(STRIPE_DATA.membership.id, STRIPE_DATA.membership.mode)}
-            >
-              Subscribe
-            </NeonButton>
+            {hasMembership ? (
+              <>
+                <p style={{ margin: "12px 0 0", fontSize: "0.85rem", color: colors.accent, fontWeight: 700 }}>
+                  Your membership is active.
+                </p>
+                <NeonButton
+                  size="lg"
+                  variant="secondary"
+                  style={{ marginTop: "12px" }}
+                  onClick={() => navigate("/dashboard")}
+                >
+                  Go to Dashboard
+                </NeonButton>
+              </>
+            ) : (
+              <NeonButton
+                size="lg"
+                style={{ marginTop: "12px" }}
+                onClick={() => handleCheckout(STRIPE_DATA.membership.id, STRIPE_DATA.membership.mode)}
+              >
+                Subscribe
+              </NeonButton>
+            )}
           </div>
         </div>
       </Card>
@@ -176,7 +291,12 @@ export default function Pricing() {
         <Badge tone="muted">Step 2 · Optional add-ons</Badge>
         {!hasMembership && (
           <span style={{ fontSize: "0.85rem", color: colors.textFaint }}>
-            🔒 Campaign tiers unlock after your membership is active
+            Campaign tiers unlock after your membership is active
+          </span>
+        )}
+        {hasMembership && hasCampaign && (
+          <span style={{ fontSize: "0.85rem", color: colors.accent, fontWeight: 600 }}>
+            You have an active campaign — add another tier anytime
           </span>
         )}
       </div>
@@ -242,7 +362,24 @@ export default function Pricing() {
             </NeonButton>
           </Card>
         ))}
+        <p style={{ margin: "24px 0 0", fontSize: "0.78rem", color: colors.textFaint, textAlign: "center" }}>
+          By subscribing you agree to our{" "}
+          <Link to="/terms" style={{ color: colors.accent, fontWeight: 600 }}>
+            Terms of Service
+          </Link>
+          .
+        </p>
       </div>
+
+      <style>{`
+        @keyframes pricing-status-pulse {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.55; transform: scale(0.92); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          [style*="pricing-status-pulse"] { animation: none !important; }
+        }
+      `}</style>
     </Layout>
   )
 }

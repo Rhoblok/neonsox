@@ -4,16 +4,19 @@ import Card from "../components/Card"
 import NeonButton from "../components/NeonButton"
 import { useTheme } from "../context/ThemeContext"
 import { useAuth } from "../context/AuthContext"
+import ScaleMonitorPanel from "../components/admin/ScaleMonitorPanel"
 
 const APP_PAGES = [
   { label: "Landing Page", path: "/", desc: "Public marketing home" },
   { label: "Pricing / Join Us", path: "/pricing", desc: "Membership + campaign tiers" },
   { label: "Success", path: "/success", desc: "Post-checkout confirmation" },
-  { label: "Member Portal", path: "/member", desc: "Member hub & onboarding" },
+  { label: "Member Portal", path: "/member", desc: "Member home & onboarding" },
+  { label: "Profile", path: "/profile", desc: "Account details & subscription" },
   { label: "Dashboard", path: "/dashboard", desc: "Wizard → analytics folder" },
   { label: "About", path: "/about", desc: "Marketing — about" },
   { label: "Features", path: "/features", desc: "Marketing — features" },
   { label: "Privacy", path: "/privacy", desc: "Marketing — privacy" },
+  { label: "Terms", path: "/terms", desc: "Terms of Service + acceptable use" },
 ]
 
 export default function Admin() {
@@ -122,6 +125,8 @@ export default function Admin() {
           Log out
         </NeonButton>
       </div>
+
+      <ScaleMonitorPanel />
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "20px", marginTop: "28px" }}>
         {/* Preview toggles */}
