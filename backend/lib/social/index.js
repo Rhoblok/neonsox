@@ -1,4 +1,5 @@
 import { postStub } from "./adapters/stub.js"
+import { postToTelegram, isTelegramConfigured } from "./adapters/telegram.js"
 
 /** @typedef {import('./types.js').SocialPostPayload} SocialPostPayload */
 /** @typedef {import('./types.js').SocialPostResult} SocialPostResult */
@@ -9,7 +10,7 @@ import { postStub } from "./adapters/stub.js"
  */
 const ADAPTERS = {
   x: postStub,
-  telegram: postStub,
+  telegram: (payload) => postToTelegram(payload),
   reddit: postStub,
   bluesky: postStub,
   discord: postStub,
@@ -32,4 +33,16 @@ export async function postToSocialPlatform(payload) {
 
 export function listSupportedPlatforms() {
   return Object.keys(ADAPTERS)
+}
+
+export function getSocialPlatformStatus(env = process.env) {
+  return {
+    telegram: isTelegramConfigured(env),
+    x: false,
+    reddit: false,
+    bluesky: false,
+    discord: false,
+    tiktok: false,
+    signal: false,
+  }
 }

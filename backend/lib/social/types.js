@@ -10,6 +10,7 @@
  * @property {SocialPostType} postType
  * @property {string} mediaUrl
  * @property {string} [caption]
+ * @property {string} [companyName]
  * @property {string} [trayItemId]
  * @property {string} [generationId]
  * @property {string} [campaignKey]

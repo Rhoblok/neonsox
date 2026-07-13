@@ -1,4 +1,4 @@
-import { listSupportedPlatforms, postToSocialPlatform } from "./social/index.js"
+import { listSupportedPlatforms, postToSocialPlatform, getSocialPlatformStatus } from "./social/index.js"
 
 /**
  * Proprietary social API routes — app talks to platforms via backend adapters only.
@@ -9,13 +9,29 @@ export function registerSocialRoutes(app) {
     res.json({ platforms: listSupportedPlatforms() })
   })
 
+  app.get("/api/social/status", (_req, res) => {
+    res.json({ configured: getSocialPlatformStatus() })
+  })
+
   app.get("/api/social/connections", (_req, res) => {
-    res.json({ connections: [], note: "OAuth wiring pending — run supabase-social-connections.sql first" })
+    const configured = getSocialPlatformStatus()
+    const connections = Object.entries(configured)
+      .filter(([, ready]) => ready)
+      .map(([platform]) => ({ platform, status: "active", label: "Server configured" }))
+    res.json({ connections })
   })
 
   app.post("/api/social/post", async (req, res) => {
-    const { platform, postType, mediaUrl, caption, trayItemId, generationId, campaignKey } =
-      req.body || {}
+    const {
+      platform,
+      postType,
+      mediaUrl,
+      caption,
+      companyName,
+      trayItemId,
+      generationId,
+      campaignKey,
+    } = req.body || {}
 
     if (!platform || !mediaUrl) {
       return res.status(400).json({ ok: false, error: "platform and mediaUrl are required" })
@@ -26,6 +42,7 @@ export function registerSocialRoutes(app) {
       postType: postType || "media",
       mediaUrl,
       caption,
+      companyName,
       trayItemId,
       generationId,
       campaignKey,

@@ -5,6 +5,8 @@ import { SOCIAL_PLATFORMS } from "../../lib/socialPlatforms"
 import { studioKeyFromSetup } from "../../lib/paletteStudioStorage"
 import { loadSocialsTray } from "../../lib/socialsTrayStorage"
 import { trayItemPlaybackUrl } from "../../lib/studioSteps"
+import { postToSocial } from "../../lib/socialApi"
+import { platformById } from "../../lib/socialPlatforms"
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:4242"
 
@@ -51,6 +53,10 @@ export default function SocialsTrayPanel({
   const [copyMsg, setCopyMsg] = useState("")
   const [downloadMsg, setDownloadMsg] = useState("")
   const [downloading, setDownloading] = useState(false)
+  const [socialStatus, setSocialStatus] = useState({})
+  const [socialReady, setSocialReady] = useState(null)
+  const [postingPlatform, setPostingPlatform] = useState(null)
+  const [postMsg, setPostMsg] = useState("")
 
   const refresh = useCallback(() => {
     const next = loadSocialsTray(campaignKey)
@@ -61,6 +67,22 @@ export default function SocialsTrayPanel({
   useEffect(() => {
     refresh()
   }, [refresh])
+
+  useEffect(() => {
+    fetch(`${API_BASE}/api/social/status`)
+      .then((res) => {
+        if (!res.ok) throw new Error(`status ${res.status}`)
+        return res.json()
+      })
+      .then((data) => {
+        setSocialStatus(data?.configured || {})
+        setSocialReady(true)
+      })
+      .catch(() => {
+        setSocialStatus({})
+        setSocialReady(false)
+      })
+  }, [])
 
   useEffect(() => {
     function onUpdated() {
@@ -121,6 +143,34 @@ export default function SocialsTrayPanel({
       window.setTimeout(() => setDownloadMsg(""), 4000)
     }
   }
+
+  async function postToPlatform(platformId) {
+    if (!active || !src || postingPlatform) return
+    const label = platformById(platformId)?.label || platformId
+    setPostMsg("")
+    setPostingPlatform(platformId)
+    try {
+      const caption = [active.companyName, active.industry].filter(Boolean).join(" — ")
+      const result = await postToSocial({
+        platform: platformId,
+        mediaUrl: src,
+        postType: "media",
+        caption,
+        companyName: active.companyName,
+        trayItemId: active.id,
+        generationId: active.generationId,
+        campaignKey,
+      })
+      setPostMsg(result.ok ? `Posted to ${label}!` : result.error || "Post failed")
+    } catch (err) {
+      setPostMsg(err.message || "Post failed")
+    } finally {
+      setPostingPlatform(null)
+      window.setTimeout(() => setPostMsg(""), 5000)
+    }
+  }
+
+  const showPostSection = platforms.length > 0
 
   return (
     <section
@@ -322,6 +372,40 @@ export default function SocialsTrayPanel({
               )
             })}
           </div>
+
+          {showPostSection && (
+            <div style={{ marginTop: "12px" }}>
+              <div style={{ fontSize: "0.75rem", fontWeight: 700, color: colors.textFaint, marginBottom: "8px" }}>
+                Post now
+              </div>
+              {socialReady === false && (
+                <p style={{ margin: "0 0 8px", fontSize: "0.75rem", color: "#ff8a8a", lineHeight: 1.5 }}>
+                  Backend needs a restart with the latest code. In PowerShell:{" "}
+                  <code style={{ fontSize: "0.7rem" }}>cd backend → node server.js</code>, then hard refresh this page.
+                </p>
+              )}
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center" }}>
+                {platforms.map((platformId) => {
+                  const label = platformById(platformId)?.label || platformId
+                  const wired = !!socialStatus[platformId]
+                  const busy = postingPlatform === platformId
+                  return (
+                    <NeonButton
+                      key={platformId}
+                      size="sm"
+                      disabled={!src || !!postingPlatform || !wired}
+                      onClick={() => postToPlatform(platformId)}
+                    >
+                      {busy ? "Posting…" : wired ? `Post to ${label}` : `${label} (soon)`}
+                    </NeonButton>
+                  )
+                })}
+                {postMsg && (
+                  <span style={{ fontSize: "0.75rem", fontWeight: 700, color: colors.accent }}>{postMsg}</span>
+                )}
+              </div>
+            </div>
+          )}
         </>
       )}
     </section>
