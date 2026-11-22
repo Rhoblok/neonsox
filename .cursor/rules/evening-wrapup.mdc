@@ -1,0 +1,14 @@
+---
+description: End-of-day "what's shipped" requests trigger backup, changelog, and git commit
+alwaysApply: true
+---
+
+# Evening wrap-up
+
+When the user asks for an end-of-day recap — e.g. **what's shipped**, **wrap up**, **evening recap**, **backup tonight** — do this before ending:
+
+1. Write a short **shipped recap** by app (Aitherz, KEVR, CrossFrost, Neonsox; skip Synap-Dragon unless they say it is ready).
+2. Append a dated block to `c:\Users\keara\OneDrive\Desktop\SHIPPED_LOG.md`.
+3. For each app with changes: update `CHANGELOG.md` when the project has one; run git via `C:\Program Files\Git\bin\git.exe`; never commit `.env*` or secrets; commit and push if `origin` exists.
+4. If no remote: tell them to use Cursor **Share** / codebase backup; OneDrive alone is not sufficient.
+5. Follow `EVENING_WRAPUP_PLAYBOOK.md` on the Desktop for the full checklist.
