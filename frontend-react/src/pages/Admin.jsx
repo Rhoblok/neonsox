@@ -5,6 +5,8 @@ import NeonButton from "../components/NeonButton"
 import { useTheme } from "../context/ThemeContext"
 import { useAuth } from "../context/AuthContext"
 import ScaleMonitorPanel from "../components/admin/ScaleMonitorPanel"
+import CreatorMusicReviewPanel from "../components/admin/CreatorMusicReviewPanel"
+import SupabaseKeepalivePanel from "../components/admin/SupabaseKeepalivePanel"
 
 const APP_PAGES = [
   { label: "Landing Page", path: "/", desc: "Public marketing home" },
@@ -126,7 +128,11 @@ export default function Admin() {
         </NeonButton>
       </div>
 
+      <SupabaseKeepalivePanel />
+
       <ScaleMonitorPanel />
+
+      <CreatorMusicReviewPanel />
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "20px", marginTop: "28px" }}>
         {/* Preview toggles */}

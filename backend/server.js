@@ -11,8 +11,11 @@ import { runTextOverlay } from "./lib/runTextOverlay.js"
 import { friendlyRunwayError } from "./lib/runwayErrors.js"
 import { requireAdmin } from "./lib/adminAuth.js"
 import { evaluateScaleMonitor, fetchSubscriberCounts } from "./lib/scaleMonitor.js"
+import { pingSupabase } from "./lib/supabaseKeepalive.js"
 import { enrichResultWithCloudUrls } from "./lib/clipCloudStorage.js"
 import { registerSocialRoutes } from "./lib/socialRoutes.js"
+import { registerEditorRoutes } from "./lib/editorRoutes.js"
+import { registerCreatorMusicRoutes } from "./lib/creatorMusicRoutes.js"
 import { verifyClipToken, BUCKET as CLIP_BUCKET } from "./lib/clipProxy.js"
 
 import { publicAudioError, publicOverlayError } from "./lib/publicErrors.js"
@@ -370,7 +373,28 @@ app.get("/api/admin/scale-monitor", requireAdmin, async (_req, res) => {
   }
 })
 
+/** Feed free-tier inactivity detector — admin login / Admin page. */
+app.post("/api/admin/supabase-ping", requireAdmin, async (_req, res) => {
+  const supabase = getSupabase()
+  if (!supabase) {
+    return res.status(503).json({ error: "Server is missing Supabase configuration." })
+  }
+
+  try {
+    const report = await pingSupabase(supabase)
+    if (!report.ok) {
+      return res.status(503).json(report)
+    }
+    res.json(report)
+  } catch (err) {
+    console.error("Supabase keepalive error:", err.message)
+    res.status(500).json({ error: "Could not ping Supabase.", detail: err.message })
+  }
+})
+
 registerSocialRoutes(app)
+registerEditorRoutes(app)
+registerCreatorMusicRoutes(app)
 
 const PORT = Number(process.env.PORT || 4242)
 
@@ -392,7 +416,7 @@ server.on("listening", () => {
   } else if (process.env.ELEVENLABS_API_KEY) {
     console.log("ElevenLabs: key set · set ELEVENLABS_AUDIO_ENABLED=true to enable mix")
   }
-  console.log("ffmpeg: text overlay (Step 6) enabled · bundled fonts in assets/fonts/")
+  console.log("ffmpeg: text overlay (Step 6) + editor stitch enabled · bundled fonts in assets/fonts/")
 })
 
 server.on("error", (err) => {

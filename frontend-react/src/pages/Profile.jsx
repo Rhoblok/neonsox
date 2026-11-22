@@ -3,6 +3,7 @@ import { useNavigate, Link } from "react-router-dom"
 import Layout from "../components/Layout"
 import Card from "../components/Card"
 import NeonButton from "../components/NeonButton"
+import CreatorMusicPanel from "../components/CreatorMusicPanel"
 import { useTheme } from "../context/ThemeContext"
 import { useAuth } from "../context/AuthContext"
 
@@ -82,6 +83,8 @@ export default function Profile() {
             ))}
           </dl>
         </Card>
+
+        <CreatorMusicPanel />
 
         <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", justifyContent: "center", marginTop: "24px" }}>
           <NeonButton size="lg" onClick={() => navigate("/member")}>

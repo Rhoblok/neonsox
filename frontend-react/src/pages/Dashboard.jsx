@@ -6,8 +6,14 @@ import { formatMarketSummary } from "../lib/marketCountries"
 import ThemeToggle from "../components/ThemeToggle"
 import Wordmark from "../components/Wordmark"
 import PaletteGenerationStudio from "../components/palette/PaletteGenerationStudio"
+import EditorTrayPanel from "../components/palette/EditorTrayPanel"
+import GoogleTrendsPanel from "../components/palette/GoogleTrendsPanel"
 import { useTheme } from "../context/ThemeContext"
 import { useAuth } from "../context/AuthContext"
+import { SOCIAL_PLATFORMS } from "../lib/socialPlatforms"
+import { studioKeyFromSetup } from "../lib/paletteStudioStorage"
+import { loadActivityLog, pushActivity } from "../lib/activityLogStorage"
+import { fetchSocialStatus } from "../lib/socialApi"
 
 const WIZARD_KEY = "neonsox-wizard"
 
@@ -16,8 +22,6 @@ const TIERS = {
   tier2: { label: "Tier 2 — $149 (60 days)", platforms: 3 },
   tier3: { label: "Tier 3 — $199 (60 days)", platforms: 4 },
 }
-
-import { SOCIAL_PLATFORMS } from "../lib/socialPlatforms"
 
 const PLATFORMS = SOCIAL_PLATFORMS
 
@@ -42,12 +46,16 @@ export default function Dashboard() {
   // Wizard is remembered: once completed it won't show again until "Re-run setup".
   const [currentStep, setCurrentStep] = useState(() => (readWizard() ? "dashboard" : "wizard"))
   const [isCurated, setIsCurated] = useState(() => readWizard() === "curated")
-  const [activeTab, setActiveTab] = useState("dashboard") // 'dashboard' | 'palette'
+  const [activeTab, setActiveTab] = useState("dashboard") // 'dashboard' | 'palette' | 'editor'
   const [feedType, setFeedType] = useState("personal")
 
   const [campaign, setCampaignState] = useState(() => loadCampaignSetup())
   const [campaignReady, setCampaignReady] = useState(() => !user?.id)
   const [campaignCloudMissing, setCampaignCloudMissing] = useState(false)
+  const [activity, setActivity] = useState(() => loadActivityLog("global"))
+  const [socialConfigured, setSocialConfigured] = useState({})
+
+  const campaignKey = studioKeyFromSetup(campaign)
 
   const setCampaign = useCallback(
     (next) => {
@@ -63,6 +71,21 @@ export default function Dashboard() {
     },
     [user?.id]
   )
+
+  useEffect(() => {
+    function refreshActivity() {
+      setActivity(loadActivityLog(campaignKey).length ? loadActivityLog(campaignKey) : loadActivityLog("global"))
+    }
+    refreshActivity()
+    window.addEventListener("neonsox-activity-updated", refreshActivity)
+    return () => window.removeEventListener("neonsox-activity-updated", refreshActivity)
+  }, [campaignKey])
+
+  useEffect(() => {
+    fetchSocialStatus()
+      .then((data) => setSocialConfigured(data?.configured || {}))
+      .catch(() => setSocialConfigured({}))
+  }, [])
 
   useEffect(() => {
     if (!user?.id) {
@@ -109,17 +132,31 @@ export default function Dashboard() {
   // ── Campaign builder helpers ──────────────────────────────
   const allowance = TIERS[campaign.tier].platforms
 
-  const setTier = (tier) =>
+  const setTier = (tier) => {
     setCampaign((c) => ({ ...c, tier, platforms: c.platforms.slice(0, TIERS[tier].platforms) }))
+    pushActivity(campaignKey, { type: "campaign", message: `Package tier set to ${TIERS[tier].label}.` })
+  }
 
-  const togglePlatform = (id) =>
+  const togglePlatform = (id) => {
     setCampaign((c) => {
-      if (c.platforms.includes(id)) return { ...c, platforms: c.platforms.filter((p) => p !== id) }
+      const removing = c.platforms.includes(id)
+      if (removing) {
+        pushActivity(campaignKey, {
+          type: "social",
+          message: `Removed ${id} from campaign platforms.`,
+        })
+        return { ...c, platforms: c.platforms.filter((p) => p !== id) }
+      }
       if (c.platforms.length >= TIERS[c.tier].platforms) return c
+      pushActivity(campaignKey, {
+        type: "social",
+        message: `Added ${id} to campaign platforms.`,
+      })
       return { ...c, platforms: [...c.platforms, id] }
     })
+  }
 
-  const onStartDate = (val) =>
+  const onStartDate = (val) => {
     setCampaign((c) => {
       let end = c.endDate
       if (val && !c.endDate) {
@@ -129,6 +166,10 @@ export default function Dashboard() {
       }
       return { ...c, startDate: val, endDate: end }
     })
+    if (val) {
+      pushActivity(campaignKey, { type: "campaign", message: `Campaign start date set to ${val}.` })
+    }
+  }
 
   if (loading || !isAuthenticated) {
     return (
@@ -169,10 +210,11 @@ export default function Dashboard() {
     )
   }
 
-  // ── STEP 2: MAIN DASHBOARD (file folder, 2 tabs) ──────────
+  // ── STEP 2: MAIN DASHBOARD (file folder, 3 tabs) ──────────
   const tabs = [
     { key: "dashboard", label: "Dashboard" },
     { key: "palette", label: "Palette Schema", locked: profileReady && !hasCampaign },
+    { key: "editor", label: "Editing Bay", locked: profileReady && !hasCampaign },
   ]
 
   return (
@@ -181,10 +223,11 @@ export default function Dashboard() {
         <div>
           <h1 style={styles.brandTitle}>
             <Wordmark size="1.45rem" />
-            <span style={styles.brandPlatform}> PLATFORM</span>
           </h1>
-          <p style={styles.statusSubtitle}>
-            Mode: {isCurated ? "✨ Curated Walkthrough Active" : "📁 Blank Canvas Dashboard"}
+          <p style={styles.statusSubtitle} title="Chosen during first-time setup. Curated = sample modules filled in for a guided tour. Blank = empty dashboard you fill yourself. Use Re-run setup to switch.">
+            {isCurated
+              ? "Setup: Guided walkthrough on (sample modules filled in)"
+              : "Setup: Blank canvas (empty modules — fill as you go)"}
           </p>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
@@ -237,7 +280,38 @@ export default function Dashboard() {
               aria-controls={`dashboard-panel-${tab.key}`}
               aria-disabled={tab.locked || undefined}
               onClick={() => !tab.locked && setActiveTab(tab.key)}
-              style={{ ...styles.tab, ...(active ? styles.tabActive : styles.tabInactive) }}
+              style={{
+                ...styles.tab,
+                ...(active ? styles.tabActive : styles.tabInactive),
+                fontWeight: 900,
+                ...(tab.key === "editor"
+                  ? {
+                      color: active ? "#06121c" : "#ffd640",
+                      textShadow: active
+                        ? "none"
+                        : "0 0 8px rgba(255, 214, 64, 0.85), 0 0 18px rgba(255, 200, 0, 0.45)",
+                      ...(active
+                        ? {
+                            background: "#ffd640",
+                            boxShadow: "0 0 18px rgba(255, 214, 64, 0.7), 0 0 32px rgba(255, 200, 0, 0.35)",
+                          }
+                        : {
+                            borderColor: "rgba(255, 214, 64, 0.55)",
+                            boxShadow: "0 0 12px rgba(255, 214, 64, 0.25)",
+                          }),
+                    }
+                  : active
+                    ? {
+                        textShadow: "0 0 10px rgba(255, 235, 59, 0.55)",
+                        boxShadow: "0 0 16px rgba(255, 235, 59, 0.55), 0 -2px 14px rgba(255, 235, 59, 0.35)",
+                      }
+                    : {
+                        color: colors.accent,
+                        textShadow: `0 0 10px ${colors.glow}, 0 0 18px rgba(56, 189, 248, 0.35)`,
+                        borderColor: "rgba(56, 189, 248, 0.35)",
+                        boxShadow: "0 0 10px rgba(56, 189, 248, 0.15)",
+                      }),
+              }}
             >
               {tab.label}
               {tab.locked && <span style={styles.lockPill} aria-hidden="true">🔒</span>}
@@ -258,20 +332,18 @@ export default function Dashboard() {
           hidden={activeTab !== "dashboard"}
         >
             {/* Campaign Feed */}
-            <div style={{ ...styles.card, gridColumn: "span 2" }}>
-              <div style={styles.feedHeader}>
-                <h3 style={styles.cardTitle}>Campaign Feed</h3>
-                <div style={styles.feedToggleGroup}>
-                  {["personal", "industry", "trending"].map((type) => (
-                    <button
-                      key={type}
-                      onClick={() => setFeedType(type)}
-                      style={{ ...styles.feedToggleBtn, ...(feedType === type ? styles.activeFeedBtn : {}) }}
-                    >
-                      {type.toUpperCase()}
-                    </button>
-                  ))}
-                </div>
+            <div style={styles.card}>
+              <h3 style={{ ...styles.cardTitle, textAlign: "center" }}>Campaign Feed</h3>
+              <div style={styles.feedToggleGroup}>
+                {["personal", "industry", "trending"].map((type) => (
+                  <button
+                    key={type}
+                    onClick={() => setFeedType(type)}
+                    style={{ ...styles.feedToggleBtn, ...(feedType === type ? styles.activeFeedBtn : {}) }}
+                  >
+                    {type.toUpperCase()}
+                  </button>
+                ))}
               </div>
               <div style={styles.feedContent}>
                 <p style={{ color: colors.textMuted, margin: 0 }}>
@@ -286,47 +358,71 @@ export default function Dashboard() {
 
             {/* Engagement Analytics */}
             <div style={styles.card}>
-              <h3 style={styles.cardTitle}>Engagement Analytics</h3>
-              <div style={styles.metricRow}>
-                <div>
-                  <div style={styles.metricBig}>84.2k</div>
-                  <p style={styles.cardLabel}>Impressions</p>
+              <h3 style={{ ...styles.cardTitle, textAlign: "center", margin: "0 0 6px" }}>Engagement Analytics</h3>
+              <div style={{ ...styles.cardBody, display: "flex", flexDirection: "column", gap: "4px" }}>
+                <div style={{ ...styles.metricRow, marginBottom: 0, flexShrink: 0 }}>
+                  <div>
+                    <div style={{ ...styles.metricBig, fontSize: "1.35rem" }}>84.2k</div>
+                    <p style={styles.cardLabel}>Impressions</p>
+                  </div>
+                  <div>
+                    <div style={{ ...styles.metricBig, fontSize: "1.35rem" }}>3.1k</div>
+                    <p style={styles.cardLabel}>Clicks</p>
+                  </div>
                 </div>
-                <div>
-                  <div style={styles.metricBig}>3.1k</div>
-                  <p style={styles.cardLabel}>Clicks</p>
+                <div style={{ flex: 1, minHeight: 0, width: "100%" }}>
+                  <Sparkline colors={colors} />
                 </div>
+                <p style={{ ...styles.cardFootnote, margin: "2px 0 0", flexShrink: 0 }}>
+                  Last 15 hours · cyan = impressions · amber = clicks
+                </p>
               </div>
-              <Sparkline colors={colors} />
-              <p style={styles.cardFootnote}>Current or last active campaign</p>
             </div>
 
             {/* Industry Speedometer */}
             <div style={styles.card}>
-              <h3 style={styles.cardTitle}>Industry Speedometer</h3>
-              <Speedometer colors={colors} value={75} />
-              <p style={styles.cardFootnote}>Driven by sentiment analysis</p>
+              <h3 style={{ ...styles.cardTitle, textAlign: "center" }}>Industry Speedometer</h3>
+              <div style={styles.cardBody}>
+                <Speedometer colors={colors} value={75} />
+                <p style={styles.cardFootnote}>Driven by sentiment analysis</p>
+              </div>
             </div>
 
             {/* Messages */}
             <div style={styles.card}>
-              <h3 style={styles.cardTitle}>Messages</h3>
-              <div style={styles.listItem}>📩 Tier update validation token generated.</div>
-              <div style={styles.listItem}>📩 Stripe webhook subscription verified.</div>
+              <h3 style={{ ...styles.cardTitle, textAlign: "center" }}>Messages</h3>
+              <div style={styles.cardBody}>
+                {activity.length === 0 ? (
+                  <p style={{ margin: 0, color: colors.textFaint, fontSize: "0.82rem" }}>
+                    No activity yet — save campaign setup, stitch, or export to see updates here.
+                  </p>
+                ) : (
+                  activity.slice(0, 8).map((item) => (
+                    <div key={item.id} style={styles.listItem}>
+                      <span style={{ color: colors.textMuted }}>{item.message}</span>
+                      <div style={{ fontSize: "0.68rem", color: colors.textFaint, marginTop: "2px" }}>
+                        {new Date(item.at).toLocaleString()}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
 
             {/* Campaign Calendar */}
             <div style={styles.card}>
-              <h3 style={styles.cardTitle}>Campaign Calendar</h3>
-              <MiniCalendar colors={colors} />
+              <h3 style={{ ...styles.cardTitle, textAlign: "center" }}>Campaign Calendar</h3>
+              <div style={styles.cardBody}>
+                <MiniCalendar colors={colors} startDate={campaign.startDate} endDate={campaign.endDate} />
+              </div>
             </div>
 
-            {/* Trends */}
+            {/* Google Trends */}
             <div style={styles.card}>
-              <h3 style={styles.cardTitle}>Trends</h3>
-              <div style={styles.listItem}># NeonLaunch</div>
-              <div style={styles.listItem}># CreatorEconomy</div>
-              <div style={styles.listItem}># GlowUpMarketing</div>
+              <h3 style={{ ...styles.cardTitle, textAlign: "center" }}>Google Trends</h3>
+              <div style={styles.cardBody}>
+                <GoogleTrendsPanel />
+              </div>
             </div>
         </div>
 
@@ -346,8 +442,8 @@ export default function Dashboard() {
             aria-labelledby="dashboard-tab-palette"
             hidden={activeTab !== "palette"}
           >
-                <h3 style={styles.cardTitle}>Campaign Design Framework</h3>
-                <p style={{ color: colors.textFaint, margin: "0 0 20px" }}>
+                <h3 style={{ ...styles.cardTitle, margin: "0 0 6px" }}>Campaign Design Framework</h3>
+                <p style={{ color: colors.textFaint, margin: "0 0 10px", fontSize: "0.85rem" }}>
                   Configure your campaign, choose platforms, and lock in your run.
                 </p>
 
@@ -461,19 +557,40 @@ export default function Dashboard() {
                         {PLATFORMS.map((p) => {
                           const on = campaign.platforms.includes(p.id)
                           const atCap = !on && campaign.platforms.length >= allowance
+                          const connected = !!socialConfigured[p.id]
                           return (
                             <button
                               type="button"
                               key={p.id}
                               onClick={() => togglePlatform(p.id)}
                               disabled={atCap}
+                              title={
+                                on
+                                  ? connected
+                                    ? `${p.label} selected · connected`
+                                    : `${p.label} selected · needs setup`
+                                  : p.label
+                              }
                               style={{
                                 ...styles.platformChip,
                                 ...(on ? styles.platformChipActive : {}),
                                 ...(atCap ? styles.platformChipDisabled : {}),
                               }}
                             >
-                              {on ? "✓ " : ""}{p.label}
+                              {on ? "✓ " : ""}
+                              {p.label}
+                              {on && (
+                                <span
+                                  style={{
+                                    marginLeft: "4px",
+                                    fontSize: "0.62rem",
+                                    fontWeight: 800,
+                                    color: connected ? "#34d399" : "#e8a04a",
+                                  }}
+                                >
+                                  {connected ? "· connected" : "· needs setup"}
+                                </span>
+                              )}
                             </button>
                           )
                         })}
@@ -508,7 +625,52 @@ export default function Dashboard() {
                 View Campaign Tiers
               </button>
             </div>
+        ) : activeTab === "editor" ? (
+          <div style={styles.lockedState}>
+              <div style={styles.lockIconBig}>🔒</div>
+              <h3 style={styles.cardTitle}>Editing Bay is locked</h3>
+              <p style={{ color: colors.textMuted, maxWidth: "420px", margin: "0 auto 20px", lineHeight: 1.6 }}>
+                Purchase a campaign tier to stitch clips in the Cut Room, upload your own media, and export edits to the Socials Tray.
+              </p>
+              <button style={styles.checkoutSubmitBtn} onClick={() => navigate("/pricing")}>
+                View Campaign Tiers
+              </button>
+            </div>
         ) : null}
+
+        {/* TAB 3: EDITOR TRAY */}
+        {hasCampaign && (
+          <div
+            style={{
+              ...styles.paletteFormCard,
+              display: activeTab === "editor" ? "block" : "none",
+            }}
+            role="tabpanel"
+            id="dashboard-panel-editor"
+            aria-labelledby="dashboard-tab-editor"
+            hidden={activeTab !== "editor"}
+          >
+            <h3
+              style={{
+                ...styles.cardTitle,
+                fontWeight: 900,
+                fontSize: "0.95rem",
+                letterSpacing: "0.04em",
+                margin: "0 0 4px",
+                color: "#ffd640",
+                textShadow:
+                  "0 0 8px rgba(255, 214, 64, 0.95), 0 0 18px rgba(255, 200, 0, 0.7)",
+              }}
+            >
+              Editing Bay
+            </h3>
+            {campaignReady ? (
+              <EditorTrayPanel campaignSetup={campaign} />
+            ) : (
+              <p style={{ color: colors.textMuted, margin: 0 }}>Loading editor…</p>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -516,15 +678,155 @@ export default function Dashboard() {
 
 // ── Small presentational widgets ────────────────────────────
 function Sparkline({ colors }) {
-  const pts = [8, 12, 9, 16, 14, 22, 18, 26, 24, 30]
-  const max = Math.max(...pts)
-  const w = 220
-  const h = 44
-  const step = w / (pts.length - 1)
-  const d = pts.map((p, i) => `${i === 0 ? "M" : "L"} ${i * step} ${h - (p / max) * h}`).join(" ")
+  // Hourly sample — shorter window, more jumps so the line reads as live.
+  const impressions = [12, 28, 18, 42, 22, 55, 31, 48, 19, 62, 35, 71, 40, 58, 26, 66]
+  const clicks = [4, 9, 6, 14, 7, 18, 10, 16, 5, 21, 11, 24, 13, 19, 8, 22]
+  const xLabels = ["0h", "3h", "6h", "9h", "12h", "15h"]
+  const yTicks = [0, 25, 50, 75]
+
+  const pad = { top: 8, right: 6, bottom: 24, left: 30 }
+  const w = 320
+  const h = 220
+  const plotW = w - pad.left - pad.right
+  const plotH = h - pad.top - pad.bottom
+  const maxY = 75
+  const n = impressions.length
+  const barGap = 2
+  const barW = Math.max(4, plotW / n - barGap)
+
+  const xAt = (i) => pad.left + (i / (n - 1)) * plotW
+  const yAt = (v) => pad.top + plotH - (v / maxY) * plotH
+
+  const linePath = (pts) =>
+    pts.map((p, i) => `${i === 0 ? "M" : "L"} ${xAt(i).toFixed(1)} ${yAt(p).toFixed(1)}`).join(" ")
+
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} style={{ width: "100%", height: "44px", marginTop: "6px" }} preserveAspectRatio="none">
-      <path d={d} fill="none" stroke={colors.accent} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+    <svg
+      viewBox={`0 0 ${w} ${h}`}
+      style={{ width: "100%", height: "100%", display: "block" }}
+      preserveAspectRatio="none"
+      role="img"
+      aria-label="Engagement over the last 15 hours"
+    >
+      {/* Subtle grid */}
+      {yTicks.map((t) => (
+        <line
+          key={`g-${t}`}
+          x1={pad.left}
+          y1={yAt(t)}
+          x2={w - pad.right}
+          y2={yAt(t)}
+          stroke={colors.border}
+          strokeWidth="1"
+          opacity="0.45"
+        />
+      ))}
+
+      {/* Soft background bars (impressions) */}
+      {impressions.map((v, i) => {
+        const x = pad.left + (i / n) * plotW + barGap / 2
+        const barH = (v / maxY) * plotH
+        return (
+          <rect
+            key={`bar-${i}`}
+            x={x}
+            y={yAt(v)}
+            width={barW}
+            height={Math.max(1, barH)}
+            rx="1.5"
+            fill={colors.accent}
+            opacity="0.14"
+          />
+        )
+      })}
+
+      {/* Y axis */}
+      <line
+        x1={pad.left}
+        y1={pad.top}
+        x2={pad.left}
+        y2={pad.top + plotH}
+        stroke={colors.textFaint}
+        strokeWidth="1.25"
+      />
+      {yTicks.map((t) => (
+        <g key={`y-${t}`}>
+          <line
+            x1={pad.left - 3}
+            y1={yAt(t)}
+            x2={pad.left}
+            y2={yAt(t)}
+            stroke={colors.textFaint}
+            strokeWidth="1"
+          />
+          <text
+            x={pad.left - 6}
+            y={yAt(t) + 3}
+            textAnchor="end"
+            fill={colors.textFaint}
+            fontSize="9"
+            fontFamily="inherit"
+          >
+            {t}
+          </text>
+        </g>
+      ))}
+
+      {/* X axis */}
+      <line
+        x1={pad.left}
+        y1={pad.top + plotH}
+        x2={w - pad.right}
+        y2={pad.top + plotH}
+        stroke={colors.textFaint}
+        strokeWidth="1.25"
+      />
+      {xLabels.map((label, i) => {
+        const idx = Math.round((i / (xLabels.length - 1)) * (n - 1))
+        return (
+          <g key={`x-${label}`}>
+            <line
+              x1={xAt(idx)}
+              y1={pad.top + plotH}
+              x2={xAt(idx)}
+              y2={pad.top + plotH + 3}
+              stroke={colors.textFaint}
+              strokeWidth="1"
+            />
+            <text
+              x={xAt(idx)}
+              y={h - 6}
+              textAnchor="middle"
+              fill={colors.textFaint}
+              fontSize="9"
+              fontFamily="inherit"
+            >
+              {label}
+            </text>
+          </g>
+        )
+      })}
+
+      {/* Clicks line (secondary, quieter) */}
+      <path
+        d={linePath(clicks)}
+        fill="none"
+        stroke="#e8a04a"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        opacity="0.85"
+      />
+
+      {/* Impressions line */}
+      <path
+        d={linePath(impressions)}
+        fill="none"
+        stroke={colors.accent}
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   )
 }
@@ -562,38 +864,152 @@ function Speedometer({ colors, value }) {
   )
 }
 
-function MiniCalendar({ colors }) {
-  const days = Array.from({ length: 30 }, (_, i) => i + 1)
-  const active = [9, 10, 11, 18, 24, 25] // mock scheduled days
+function MiniCalendar({ colors, startDate, endDate }) {
+  const start = startDate ? new Date(`${startDate}T12:00:00`) : null
+  const end = endDate ? new Date(`${endDate}T12:00:00`) : null
+  const hasRange =
+    start && end && !Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime()) && end >= start
+
+  const initial = hasRange
+    ? { y: start.getFullYear(), m: start.getMonth() }
+    : { y: new Date().getFullYear(), m: new Date().getMonth() }
+
+  const [view, setView] = useState(initial)
+
+  // When campaign dates change, jump the view to the start month
+  useEffect(() => {
+    if (!hasRange) return
+    setView({ y: start.getFullYear(), m: start.getMonth() })
+  }, [startDate, endDate]) // eslint-disable-line react-hooks/exhaustive-deps -- intentional: jump on date string change
+
+  const year = view.y
+  const month = view.m
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  const firstWeekday = new Date(year, month, 1).getDay() // 0 = Sun
+  const cells = [
+    ...Array.from({ length: firstWeekday }, () => null),
+    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+  ]
+
+  function inRange(day) {
+    if (!hasRange || day == null) return false
+    const d = new Date(year, month, day, 12)
+    const a = new Date(start.getFullYear(), start.getMonth(), start.getDate(), 12)
+    const b = new Date(end.getFullYear(), end.getMonth(), end.getDate(), 12)
+    return d >= a && d <= b
+  }
+
+  const daysThisMonth = cells.filter((d) => d != null && inRange(d)).length
+  const totalCampaignDays = hasRange
+    ? Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1
+    : 0
+  const monthLabel = new Date(year, month, 1).toLocaleString(undefined, {
+    month: "long",
+    year: "numeric",
+  })
+
+  function shiftMonth(delta) {
+    setView((v) => {
+      const d = new Date(v.y, v.m + delta, 1)
+      return { y: d.getFullYear(), m: d.getMonth() }
+    })
+  }
+
   return (
     <div>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "6px",
+          marginBottom: "6px",
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => shiftMonth(-1)}
+          aria-label="Previous month"
+          style={calNavBtn(colors)}
+        >
+          ‹
+        </button>
+        <div style={{ fontSize: "0.72rem", fontWeight: 800, color: colors.textFaint }}>
+          {monthLabel}
+        </div>
+        <button
+          type="button"
+          onClick={() => shiftMonth(1)}
+          aria-label="Next month"
+          style={calNavBtn(colors)}
+        >
+          ›
+        </button>
+      </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "4px" }}>
         {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
-          <div key={i} style={{ textAlign: "center", fontSize: "0.62rem", color: colors.textFaint, fontWeight: 700 }}>{d}</div>
+          <div
+            key={i}
+            style={{ textAlign: "center", fontSize: "0.62rem", color: colors.textFaint, fontWeight: 700 }}
+          >
+            {d}
+          </div>
         ))}
-        {days.map((d) => {
-          const on = active.includes(d)
+        {cells.map((d, i) => {
+          const on = inRange(d)
           return (
             <div
-              key={d}
+              key={`${year}-${month}-${i}`}
               style={{
                 textAlign: "center",
                 fontSize: "0.68rem",
                 padding: "3px 0",
                 borderRadius: "4px",
-                color: on ? "#06121c" : colors.textMuted,
+                color: d == null ? "transparent" : on ? "#06121c" : colors.textMuted,
                 background: on ? colors.accent : "transparent",
                 fontWeight: on ? 700 : 400,
+                minHeight: "18px",
               }}
             >
-              {d}
+              {d ?? ""}
             </div>
           )
         })}
       </div>
-      <p style={{ color: colors.textFaint, fontSize: "0.74rem", margin: "10px 0 0" }}>6 scheduled posts this month</p>
+      <p style={{ color: colors.textFaint, fontSize: "0.74rem", margin: "10px 0 0", lineHeight: 1.4 }}>
+        {hasRange ? (
+          <>
+            Campaign window: <strong style={{ color: colors.textMuted }}>{startDate}</strong>
+            {" → "}
+            <strong style={{ color: colors.textMuted }}>{endDate}</strong>
+            {" · "}
+            {totalCampaignDays} days total
+            {daysThisMonth > 0
+              ? ` · ${daysThisMonth} shown this month`
+              : " · use ‹ › to open Aug / Sep / Oct"}
+          </>
+        ) : (
+          "Set start & end dates in Palette Schema to light up the calendar."
+        )}
+      </p>
     </div>
   )
+}
+
+function calNavBtn(colors) {
+  return {
+    width: "24px",
+    height: "24px",
+    padding: 0,
+    borderRadius: "6px",
+    border: `1px solid ${colors.border}`,
+    background: colors.surfaceAlt || colors.bg,
+    color: colors.accent,
+    fontWeight: 900,
+    fontSize: "1rem",
+    lineHeight: "22px",
+    cursor: "pointer",
+  }
 }
 
 // Theme-aware style factory.
@@ -653,13 +1069,6 @@ function getStyles(colors) {
       flexWrap: "wrap",
       gap: "2px",
     },
-    brandPlatform: {
-      fontFamily: "'Orbitron', 'Exo 2', sans-serif",
-      fontWeight: 800,
-      letterSpacing: "2px",
-      fontSize: "1.1rem",
-      color: colors.textMuted,
-    },
     statusSubtitle: { margin: 0, color: colors.textFaint, fontSize: "0.9rem" },
     rerunBtn: {
       background: "transparent",
@@ -699,9 +1108,14 @@ function getStyles(colors) {
       background: "#FFEB3B",
       color: "#000000",
       borderColor: "#FFEB3B",
-      boxShadow: "0 -2px 14px rgba(255, 235, 59, 0.45)",
+      boxShadow: "0 0 16px rgba(255, 235, 59, 0.55), 0 -2px 14px rgba(255, 235, 59, 0.4)",
+      fontWeight: 900,
     },
-    tabInactive: { background: colors.surfaceAlt, color: colors.textMuted },
+    tabInactive: {
+      background: colors.surfaceAlt,
+      color: colors.accent,
+      fontWeight: 800,
+    },
     lockPill: { fontSize: "0.8rem" },
 
     // Folder body
@@ -714,23 +1128,53 @@ function getStyles(colors) {
       minHeight: "360px",
     },
 
-    grid: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "20px" },
+    grid: {
+      display: "grid",
+      gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+      gridAutoRows: "400px",
+      gap: "14px",
+      alignItems: "stretch",
+    },
     card: {
       background: colors.bg,
-      border: `1px solid ${colors.border}`,
+      border: `1px solid rgba(56, 189, 248, 0.22)`,
       borderRadius: "12px",
-      padding: "20px",
+      padding: "16px",
+      boxShadow: `0 0 14px rgba(56, 189, 248, 0.14), 0 0 28px rgba(56, 189, 248, 0.06)`,
+      height: "400px",
+      display: "flex",
+      flexDirection: "column",
+      boxSizing: "border-box",
+      overflow: "hidden",
+    },
+    cardBody: {
+      flex: 1,
+      minHeight: 0,
+      overflowY: "auto",
     },
     feedHeader: {
       display: "flex",
-      flexWrap: "wrap",
-      justifyContent: "space-between",
+      flexDirection: "column",
       alignItems: "center",
-      gap: "12px",
-      marginBottom: "16px",
+      gap: "10px",
+      marginBottom: "12px",
     },
-    cardTitle: { margin: "0 0 12px", fontSize: "1rem", fontWeight: 700, color: colors.text },
-    feedToggleGroup: { display: "flex", gap: "6px" },
+    cardTitle: {
+      margin: "0 0 12px",
+      fontSize: "1.05rem",
+      fontWeight: 900,
+      letterSpacing: "0.03em",
+      color: colors.text,
+      textAlign: "center",
+      textShadow: `0 0 12px ${colors.glow}, 0 0 24px rgba(56, 189, 248, 0.35)`,
+    },
+    feedToggleGroup: {
+      display: "flex",
+      justifyContent: "center",
+      flexWrap: "wrap",
+      gap: "6px",
+      marginBottom: "12px",
+    },
     feedToggleBtn: {
       padding: "6px 12px",
       fontSize: "0.75rem",
@@ -741,10 +1185,25 @@ function getStyles(colors) {
       color: colors.textMuted,
       cursor: "pointer",
     },
-    activeFeedBtn: { background: colors.accent, color: "#06121c" },
-    feedContent: { padding: "16px", background: colors.surfaceAlt, borderRadius: "8px" },
-    metricRow: { display: "flex", gap: "24px", marginBottom: "6px" },
-    metricBig: { fontSize: "1.8rem", fontWeight: 800, color: colors.accent },
+    activeFeedBtn: {
+      background: colors.accent,
+      color: "#06121c",
+      boxShadow: `0 0 10px ${colors.glow}`,
+    },
+    feedContent: {
+      flex: 1,
+      padding: "14px",
+      background: colors.surfaceAlt,
+      borderRadius: "8px",
+      boxShadow: `0 0 12px rgba(56, 189, 248, 0.12)`,
+    },
+    metricRow: { display: "flex", gap: "24px", marginBottom: "6px", justifyContent: "center" },
+    metricBig: {
+      fontSize: "1.8rem",
+      fontWeight: 900,
+      color: colors.accent,
+      textShadow: `0 0 12px ${colors.glow}`,
+    },
     cardLabel: { margin: 0, color: colors.textFaint, fontSize: "0.8rem" },
     cardFootnote: { margin: "10px 0 0", color: colors.textFaint, fontSize: "0.78rem", fontStyle: "italic" },
     listItem: {
@@ -761,38 +1220,42 @@ function getStyles(colors) {
     // Palette builder
     paletteFormCard: { padding: "4px" },
     paletteCondensedBlock: {
-      border: `1px solid ${colors.border}`,
+      border: `1px solid rgba(56, 189, 248, 0.28)`,
       borderRadius: "12px",
-      padding: "14px 16px",
+      padding: "10px 12px",
       display: "flex",
       flexDirection: "column",
-      gap: "12px",
+      gap: "8px",
+      width: "fit-content",
+      maxWidth: "100%",
+      marginBottom: "4px",
+      boxShadow: `0 0 12px rgba(56, 189, 248, 0.18), 0 0 28px rgba(56, 189, 248, 0.08)`,
     },
     paletteRow: {
       display: "flex",
       flexWrap: "wrap",
       alignItems: "center",
-      gap: "10px 14px",
+      gap: "8px 12px",
     },
     compactField: {
       display: "inline-flex",
       alignItems: "center",
-      gap: "8px",
+      gap: "6px",
       flex: "0 1 auto",
     },
     compactLabel: {
-      fontSize: "0.8rem",
+      fontSize: "0.78rem",
       color: colors.textFaint,
       fontWeight: 600,
       whiteSpace: "nowrap",
     },
     compactInput: {
-      padding: "8px 10px",
+      padding: "7px 9px",
       background: colors.bg,
       border: `1px solid ${colors.border}`,
       borderRadius: "8px",
       color: colors.text,
-      fontSize: "0.85rem",
+      fontSize: "0.82rem",
       boxSizing: "border-box",
       fontFamily: "inherit",
     },

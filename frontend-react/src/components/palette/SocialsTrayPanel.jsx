@@ -7,6 +7,7 @@ import { loadSocialsTray } from "../../lib/socialsTrayStorage"
 import { trayItemPlaybackUrl } from "../../lib/studioSteps"
 import { postToSocial } from "../../lib/socialApi"
 import { platformById } from "../../lib/socialPlatforms"
+import { pushActivity } from "../../lib/activityLogStorage"
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:4242"
 
@@ -162,6 +163,9 @@ export default function SocialsTrayPanel({
         campaignKey,
       })
       setPostMsg(result.ok ? `Posted to ${label}!` : result.error || "Post failed")
+      if (result.ok) {
+        pushActivity(campaignKey || "global", { type: "social", message: `Posted to ${label}.` })
+      }
     } catch (err) {
       setPostMsg(err.message || "Post failed")
     } finally {
@@ -380,8 +384,7 @@ export default function SocialsTrayPanel({
               </div>
               {socialReady === false && (
                 <p style={{ margin: "0 0 8px", fontSize: "0.75rem", color: "#ff8a8a", lineHeight: 1.5 }}>
-                  Backend needs a restart with the latest code. In PowerShell:{" "}
-                  <code style={{ fontSize: "0.7rem" }}>cd backend → node server.js</code>, then hard refresh this page.
+                  Backend needs a restart with the latest code, then hard refresh this page.
                 </p>
               )}
               <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center" }}>
@@ -396,7 +399,7 @@ export default function SocialsTrayPanel({
                       disabled={!src || !!postingPlatform || !wired}
                       onClick={() => postToPlatform(platformId)}
                     >
-                      {busy ? "Posting…" : wired ? `Post to ${label}` : `${label} (soon)`}
+                      {busy ? "Posting…" : wired ? `Post to ${label}` : `${label} (needs setup)`}
                     </NeonButton>
                   )
                 })}
@@ -404,6 +407,49 @@ export default function SocialsTrayPanel({
                   <span style={{ fontSize: "0.75rem", fontWeight: 700, color: colors.accent }}>{postMsg}</span>
                 )}
               </div>
+              {platforms.some((id) => !socialStatus[id]) && (
+                <div
+                  style={{
+                    marginTop: "10px",
+                    padding: "10px 12px",
+                    borderRadius: "8px",
+                    border: `1px solid ${colors.border}`,
+                    background: colors.bg,
+                  }}
+                >
+                  <div style={{ fontSize: "0.72rem", fontWeight: 800, color: colors.textFaint, marginBottom: "6px", textTransform: "uppercase" }}>
+                    Connect selected platforms
+                  </div>
+                  {platforms.includes("telegram") && !socialStatus.telegram && (
+                    <p style={{ margin: "0 0 6px", fontSize: "0.78rem", color: colors.textMuted, lineHeight: 1.45 }}>
+                      <strong style={{ color: colors.text }}>Telegram</strong> — Set up Telegram (3 steps): BotFather → paste
+                      bot token → link your channel. Wizard ships next; for now use admin server config or email{" "}
+                      <a href="mailto:ceo@neonsox.com" style={{ color: colors.accent, fontWeight: 700 }}>
+                        ceo@neonsox.com
+                      </a>
+                      .
+                    </p>
+                  )}
+                  {platforms.includes("reddit") && !socialStatus.reddit && (
+                    <p style={{ margin: "0 0 6px", fontSize: "0.78rem", color: colors.textMuted, lineHeight: 1.45 }}>
+                      <strong style={{ color: colors.text }}>reddit</strong> — Connect reddit (OAuth + subreddit picker).
+                      Not wired yet — after Telegram BYO. Email{" "}
+                      <a href="mailto:ceo@neonsox.com" style={{ color: colors.accent, fontWeight: 700 }}>
+                        ceo@neonsox.com
+                      </a>{" "}
+                      if you need early access.
+                    </p>
+                  )}
+                  {platforms
+                    .filter((id) => id !== "telegram" && id !== "reddit" && !socialStatus[id])
+                    .map((id) => (
+                      <p key={id} style={{ margin: "0 0 4px", fontSize: "0.78rem", color: colors.textFaint }}>
+                        <strong style={{ color: colors.text }}>{platformById(id)?.label || id}</strong> — needs setup
+                        (not in current connect order).
+                      </p>
+                    ))}
+                </div>
+              )}
             </div>
           )}
         </>

@@ -19,6 +19,10 @@ const SECTIONS = [
     body: "You own the content you provide in your campaign brief. You grant NeonSox permission to process that content to generate ads, voice, and exports for your account. Do not upload material you do not have rights to use.",
   },
   {
+    heading: "4A. Creator Music Library",
+    body: "Campaign music for subscribers comes from the licensed NeonSox library so ads stay clear for publishing. Self-serve contributor uploads are paused. If you need an original bed in your account library, contact NeonSox support — we may approve and add it after review. Do not upload material you do not have rights to use.",
+  },
+  {
     heading: "5. Payments",
     body: "Membership and campaign fees are billed through Stripe. Refunds follow our published refund policy and applicable law. Misuse of the service does not qualify for a refund.",
   },

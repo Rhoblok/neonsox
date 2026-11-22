@@ -7,7 +7,7 @@
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "smoke": "npm run build --prefix frontend-react && node frontend-react/scripts/smoke-check.mjs && node backend/scripts/smoke-palette.mjs"
+    "smoke": "npm run build --prefix frontend-react && node frontend-react/scripts/smoke-check.mjs && node backend/scripts/smoke-palette.mjs && node backend/scripts/verify-supabase-health.mjs"
   },
   "keywords": [],
   "author": "",

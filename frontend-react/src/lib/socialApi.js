@@ -15,6 +15,12 @@ export async function fetchSocialPlatforms() {
   return parseJson(res)
 }
 
+/** Server-configured platform flags (founder env today; per-user later). */
+export async function fetchSocialStatus() {
+  const res = await fetch(`${API_BASE}/api/social/status`)
+  return parseJson(res)
+}
+
 /** Connected accounts for the signed-in user (OAuth — pending). */
 export async function fetchSocialConnections() {
   const res = await fetch(`${API_BASE}/api/social/connections`)

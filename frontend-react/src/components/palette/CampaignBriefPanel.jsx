@@ -84,12 +84,13 @@ export default function CampaignBriefPanel({ state, patch, disabled, step1Comple
     >
       <div
         style={{
-          fontSize: "0.72rem",
-          fontWeight: 700,
+          fontSize: "0.78rem",
+          fontWeight: 900,
           textTransform: "uppercase",
-          letterSpacing: "0.06em",
+          letterSpacing: "0.08em",
           color: colors.accent,
           marginBottom: "14px",
+          textShadow: `0 0 12px ${colors.glow}, 0 0 22px rgba(56, 189, 248, 0.4)`,
         }}
       >
         Campaign brief

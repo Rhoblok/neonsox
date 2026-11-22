@@ -150,6 +150,7 @@ export function saveStudioState(campaignKey, state) {
     }
     all[campaignKey] = toSave
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(all))
+    window.dispatchEvent(new CustomEvent("neonsox-studio-updated"))
   } catch {
     /* ignore quota errors during dev */
   }

@@ -5,6 +5,7 @@ import { publicAudioError, publicOverlayError } from "../lib/publicErrors"
 import { friendlyRunwayError } from "../lib/runwayErrors.js"
 import { generationPlaybackUrl, exportPlaybackUrl, generationMixSourceUrl, generationOverlaySourceUrl, generationHasPlayableClip, effectiveAdTheme } from "../lib/studioSteps"
 import { loadSocialsTray, addToSocialsTray, upgradeSocialsTrayUrls } from "../lib/socialsTrayStorage"
+import { pushActivity } from "../lib/activityLogStorage"
 import {
   loadStudioStateFromCloud,
   saveStudioStateToCloud,
@@ -776,6 +777,8 @@ export function usePaletteStudio(campaignSetup, userId) {
       musicMood: state.musicMood,
       ...marketFieldsFromSetup(campaignSetup),
     })
+
+    pushActivity(storageKey, { type: "export", message: "Exported finished ad to Socials Tray." })
 
     setState((prev) => ({
       ...prev,

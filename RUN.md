@@ -155,6 +155,16 @@ That creates:
 
 Clips still save to browser localStorage as a fast local cache; cloud is the source of truth when signed in.
 
+---
+
+## 5b. Creator Music Library (licensing gate)
+
+**Current policy:** Self-serve creator uploads are **paused**. Subscribers pick NEONSOX library beds only. Custom beds = email founder → admin upload/approve.
+
+SQL/API for the full gate still exist (`docs/supabase-creator-music.sql`) for when you re-enable contributors. AudD is optional and not required while uploads are paused.
+
+---
+
 **If cloud is not set up:** app keeps working with localStorage only (same as before).
 
 ---
@@ -182,6 +192,9 @@ npm run dev
 - Changed a `.env` file? **Restart** that server so it reloads the values.
 - **Admin login:** landing page → Log-in → email/password from `frontend-react\.env` →
   any 6-digit 2FA code → lands on `/admin` (control panel with preview unlock toggles).
+- **Supa-Pulse (free tier keepalive):** signing in as admin (and opening `/admin`) calls
+  `POST /api/admin/supabase-ping`, which touches REST + Auth + `profiles` so the project
+  does not pause for inactivity. Admin shows a **Supa-Pulse** card with a **Ping** button and last-fed time.
 
 ---
 
@@ -203,6 +216,7 @@ This runs:
 1. Frontend production **build** (catches compile crashes)
 2. **Frontend smoke** — failed tries stay visible, no auto “your ad”, tone changes scripts, long story auto-trims
 3. **Backend smoke** — Runway prompt stays within 1000 chars after trim
+4. **Supabase health** — project online, core tables + storage bucket reachable (needs `backend/.env`)
 
 If smoke fails, **do not** call the fix done until it passes.
 

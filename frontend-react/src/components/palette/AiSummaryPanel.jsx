@@ -71,12 +71,13 @@ export default function AiSummaryPanel({
       >
         <div
           style={{
-            fontSize: "0.68rem",
-            fontWeight: 700,
+            fontSize: "0.75rem",
+            fontWeight: 900,
             textTransform: "uppercase",
-            letterSpacing: "0.06em",
+            letterSpacing: "0.08em",
             color: colors.accent,
             whiteSpace: "nowrap",
+            textShadow: `0 0 12px ${colors.glow}, 0 0 22px rgba(56, 189, 248, 0.4)`,
           }}
         >
           Campaign Summary

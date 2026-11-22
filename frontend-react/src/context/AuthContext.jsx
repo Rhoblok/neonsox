@@ -137,6 +137,26 @@ export function AuthProvider({ children }) {
     }
   }, [adminOverrides, isAdmin, user])
 
+  // Feed Supabase free-tier inactivity detector whenever an admin session is ready.
+  useEffect(() => {
+    if (!isAdmin || !profileReady || !user?.id) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const { pingSupabaseKeepalive } = await import("../lib/adminApi")
+        const body = await pingSupabaseKeepalive()
+        if (!cancelled && body?.fedAt) {
+          window.localStorage.setItem("neonsox-supabase-last-fed", body.fedAt)
+        }
+      } catch {
+        // Non-blocking — Admin → Supa-Pulse shows errors.
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [isAdmin, profileReady, user?.id])
+
   const signIn = async (email, password) => {
     const { data, error } = await supabase.auth.signInWithPassword({
       email: (email || "").trim(),

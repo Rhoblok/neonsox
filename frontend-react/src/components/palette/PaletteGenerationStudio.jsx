@@ -93,7 +93,7 @@ export default function PaletteGenerationStudio({
   const allStepsComplete = allStudioStepsComplete(state, steps)
 
   return (
-    <div style={{ marginTop: "16px", textAlign: "left" }}>
+    <div style={{ marginTop: "10px", textAlign: "left" }}>
       <div
         style={{
           display: "flex",
@@ -101,10 +101,19 @@ export default function PaletteGenerationStudio({
           alignItems: "center",
           justifyContent: "space-between",
           gap: "10px",
-          marginBottom: "12px",
+          marginBottom: "8px",
         }}
       >
-        <h4 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 700, color: colors.text }}>
+        <h4
+          style={{
+            margin: 0,
+            fontSize: "1.05rem",
+            fontWeight: 900,
+            letterSpacing: "0.04em",
+            color: colors.text,
+            textShadow: `0 0 12px ${colors.glow}, 0 0 26px rgba(56, 189, 248, 0.4)`,
+          }}
+        >
           AI Video Studio
         </h4>
         <RemainingTriesBadge
